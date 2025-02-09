@@ -339,6 +339,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "assemblyai" },
+    { name = "azure-functions" },
     { name = "azure-identity" },
     { name = "azure-storage-blob" },
     { name = "langchain" },
@@ -363,13 +364,14 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "assemblyai", specifier = ">=0.37.0" },
+    { name = "azure-functions", specifier = ">=1.21.3" },
     { name = "azure-identity", specifier = ">=1.19.0" },
     { name = "azure-storage-blob", specifier = ">=12.24.1" },
     { name = "langchain", specifier = ">=0.3.18" },
     { name = "langchain-community", specifier = ">=0.3.17" },
     { name = "langchain-openai", specifier = ">=0.3.4" },
     { name = "pydub", specifier = ">=0.25.1" },
-    { name = "pytest" },
+    { name = "pytest", specifier = ">=8.3.4" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "streamlit", specifier = ">=1.42.0" },
     { name = "watchdog", specifier = ">=6.0.0" },

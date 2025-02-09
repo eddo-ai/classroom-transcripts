@@ -16,6 +16,7 @@ dependencies = [
     "azure-storage-blob>=12.24.1",
     "azure-identity>=1.19.0",
     "pytest>=8.3.4",
+    "azure-functions>=1.21.3",
 ]
 
 [build-system]
