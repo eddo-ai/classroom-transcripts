@@ -59,6 +59,7 @@ def test_audio_file():
 
 
 @pytest.mark.integration
+@pytest.mark.external_api
 def test_assemblyai_integration(test_audio_file):
     """Integration test for AssemblyAI API connectivity using local file."""
     api_key = os.getenv("ASSEMBLYAI_API_KEY")
@@ -81,8 +82,8 @@ def test_assemblyai_integration(test_audio_file):
         # Wait for completion with timeout
         start_time = time.time()
         while transcript.status not in ["completed", "error"]:
-            if time.time() - start_time > 300:  # 5 minute timeout
-                pytest.fail("Transcription timed out after 5 minutes")
+            if time.time() - start_time > 600:  # 10 minute timeout
+                pytest.fail("Transcription timed out after 10 minutes")
             time.sleep(10)
             transcript = aai.Transcript.get_by_id(transcript_id)
 
@@ -98,6 +99,7 @@ def test_assemblyai_integration(test_audio_file):
 
 
 @pytest.mark.integration
+@pytest.mark.external_api
 def test_azure_blob_transcription(test_containers, test_audio_file):
     """Integration test for transcribing audio from Azure blob storage."""
     api_key = os.getenv("ASSEMBLYAI_API_KEY")
@@ -132,8 +134,8 @@ def test_azure_blob_transcription(test_containers, test_audio_file):
         # Wait for completion with timeout
         start_time = time.time()
         while transcript.status not in ["completed", "error"]:
-            if time.time() - start_time > 300:  # 5 minute timeout
-                pytest.fail("Transcription timed out after 5 minutes")
+            if time.time() - start_time > 600:  # 10 minute timeout
+                pytest.fail("Transcription timed out after 10 minutes")
             time.sleep(10)
             transcript = aai.Transcript.get_by_id(transcript_id)
 
@@ -157,6 +159,7 @@ def test_azure_blob_transcription(test_containers, test_audio_file):
 
 
 @pytest.mark.integration
+@pytest.mark.external_api
 def test_blob_trigger_transcription(test_containers, test_audio_file):
     """Integration test for the blob trigger function."""
     api_key = os.getenv("ASSEMBLYAI_API_KEY")
@@ -176,7 +179,7 @@ def test_blob_trigger_transcription(test_containers, test_audio_file):
             print(f"Successfully uploaded blob")
 
         # Wait for the function to process and create a transcript
-        max_wait_time = 300  # 5 minutes
+        max_wait_time = 600  # 10 minutes
         start_time = time.time()
         transcription_started = False
 
