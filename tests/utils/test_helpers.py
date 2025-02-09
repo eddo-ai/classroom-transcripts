@@ -87,6 +87,7 @@ def setup_test_environment() -> dict:
         ),
         "WEBSITE_HOSTNAME": "localhost:7071",
         "AZURE_FUNCTION_KEY": "test_function_key",
+        "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     }
 
     # Update environment

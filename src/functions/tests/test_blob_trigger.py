@@ -4,19 +4,21 @@ from pathlib import Path
 import time
 import json
 from dotenv import load_dotenv
+from tests.utils.test_helpers import setup_test_environment
 
 # Load environment variables from .env.local
 load_dotenv(".env.local")
 
 
 def test_blob_trigger():
-    # Connect to local storage emulator
-    connection_string = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+    """Test the blob trigger function using local storage."""
+    # Set up test environment
+    env_vars = setup_test_environment()
 
     try:
         # Create the blob service client
         blob_service_client = BlobServiceClient.from_connection_string(
-            connection_string
+            env_vars["AZURE_STORAGE_CONNECTION_STRING"]
         )
 
         # Create containers if they don't exist
@@ -28,7 +30,7 @@ def test_blob_trigger():
                 print(f"Container {container_name} already exists")
 
         # Upload test file
-        test_file = Path("data/short-classroom-sample.m4a")
+        test_file = Path("tests/fixtures/audio/short-classroom-sample.m4a")
         if not test_file.exists():
             print(f"Test file not found at {test_file}")
             return

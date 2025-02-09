@@ -18,7 +18,7 @@ transcriber = aai.Transcriber()
 
 # local file - this will need to be a publicly accessible URL
 
-audio_url = "data/short-classroom-sample.m4a"
+audio_url = "tests/fixtures/audio/short-classroom-sample.m4a"
 
 # this step adds speaker labels, diarization, we want to add timestamps, and PII Redaction
 

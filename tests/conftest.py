@@ -3,14 +3,12 @@
 import os
 import pytest
 import logging
-from pathlib import Path
 from azure.storage.blob import BlobServiceClient
 from azure.identity import DefaultAzureCredential
 from azure.core.exceptions import AzureError
 from dotenv import load_dotenv
 import assemblyai as aai
-from .test_logging import setup_test_logging, log_test_result, log_resource_cleanup
-from .fixtures.fixtures import (
+from tests.fixtures.fixtures import (
     get_assemblyai_completed_response,
     get_assemblyai_error_response,
     get_azure_storage_response,
@@ -18,6 +16,7 @@ from .fixtures.fixtures import (
     get_invalid_audio_path,
     get_empty_audio_path,
 )
+from tests.unit.test_logging import setup_test_logging
 
 # Load environment variables
 load_dotenv(".env")
@@ -59,18 +58,38 @@ def storage_account():
 
 
 @pytest.fixture(scope="session")
-def blob_service_client(azure_credential, storage_account):
+def blob_service_client():
     """Create a blob service client for testing."""
-    try:
-        account_url = f"https://{storage_account}.blob.core.windows.net"
-        client = BlobServiceClient(account_url, credential=azure_credential)
-        # Test the connection
-        client.get_service_properties()
-        logger.info(f"Successfully connected to blob storage at {account_url}")
-        return client
-    except AzureError as e:
-        logger.error(f"Failed to connect to blob storage: {str(e)}", exc_info=True)
-        pytest.skip("Blob storage connection failed")
+    # First try local development storage
+    connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    if connection_string is not None and (
+        "UseDevelopmentStorage=true" in connection_string
+        or "127.0.0.1:10000" in connection_string
+    ):
+        logger.info("Using local development storage")
+        return BlobServiceClient.from_connection_string(connection_string)
+
+    # Fall back to Azure cloud storage if configured
+    storage_account = os.getenv("AZURE_STORAGE_ACCOUNT")
+    if storage_account:
+        try:
+            credential = DefaultAzureCredential()
+            account_url = f"https://{storage_account}.blob.core.windows.net"
+            client = BlobServiceClient(account_url, credential=credential)
+            # Test the connection
+            client.get_service_properties()
+            logger.info(
+                f"Successfully connected to Azure cloud storage at {account_url}"
+            )
+            return client
+        except Exception as e:
+            logger.error(
+                f"Failed to connect to Azure cloud storage: {str(e)}", exc_info=True
+            )
+
+    pytest.skip(
+        "No valid storage configuration found. Set AZURE_STORAGE_CONNECTION_STRING for local development."
+    )
 
 
 @pytest.fixture(scope="session")
@@ -95,9 +114,8 @@ def test_containers(blob_service_client):
     for container in created:
         try:
             container.delete_container()
-            log_resource_cleanup("container", container.container_name)
+            logger.info(f"Deleted container: {container.container_name}")
         except Exception as e:
-            log_resource_cleanup("container", container.container_name)
             logger.warning(
                 f"Failed to delete container {container.container_name}: {str(e)}"
             )
@@ -196,8 +214,8 @@ def log_test_case(request):
     # Log test result
     if hasattr(request.node, "rep_call"):
         if request.node.rep_call.passed:
-            log_test_result(logger, test_name, "PASS")
+            logger.info(f"Test result for {test_name}: PASS")
         elif request.node.rep_call.failed:
-            log_test_result(logger, test_name, "FAIL")
+            logger.info(f"Test result for {test_name}: FAIL")
         elif request.node.rep_call.skipped:
-            log_test_result(logger, test_name, "SKIP")
+            logger.info(f"Test result for {test_name}: SKIP")

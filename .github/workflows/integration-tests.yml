@@ -45,10 +45,10 @@ jobs:
 
       - name: Download test audio file
         run: |
-          mkdir -p data
-          curl -L -o data/short-classroom-sample.m4a https://github.com/eddo-ai/classroom-transcripts/raw/main/data/short-classroom-sample.m4a || \
-          curl -L -o data/short-classroom-sample.m4a https://github.com/eddo-ai/classroom-transcripts/raw/develop/data/short-classroom-sample.m4a || \
-          echo "Creating dummy audio file for testing" > data/short-classroom-sample.m4a
+          mkdir -p tests/fixtures/audio
+          curl -L -o tests/fixtures/audio/short-classroom-sample.m4a https://github.com/eddo-ai/classroom-transcripts/raw/main/tests/fixtures/audio/short-classroom-sample.m4a || \
+          curl -L -o tests/fixtures/audio/short-classroom-sample.m4a https://github.com/eddo-ai/classroom-transcripts/raw/develop/tests/fixtures/audio/short-classroom-sample.m4a || \
+          echo "Creating dummy audio file for testing" > tests/fixtures/audio/short-classroom-sample.m4a
 
       - name: Create test directories
         run: |

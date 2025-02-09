@@ -52,7 +52,7 @@ def test_containers(blob_service_client):
 @pytest.fixture
 def test_audio_file():
     """Provide a test audio file path, skipping if not available."""
-    test_file = Path("data/short-classroom-sample.m4a")
+    test_file = Path("tests/fixtures/audio/short-classroom-sample.m4a")
     if not test_file.exists():
         pytest.skip("Test audio file not found at: {}".format(test_file))
     return test_file
