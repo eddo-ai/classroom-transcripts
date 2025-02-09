@@ -93,12 +93,14 @@ def test_audio_file():
     return test_file
 
 
+@pytest.mark.integration
 def test_container_setup(test_containers):
     """Test that the Azure Storage container is properly set up."""
     # Verify container exists and is accessible
     assert test_containers.exists()
 
 
+@pytest.mark.integration
 def test_audio_file_upload(blob_service_client, test_containers, test_audio_file):
     """Test uploading an audio file to the uploads container."""
     # Upload test file
@@ -114,6 +116,7 @@ def test_audio_file_upload(blob_service_client, test_containers, test_audio_file
     print(f"Uploaded {blob_name} ({blob_properties.size} bytes) to container uploads")
 
 
+@pytest.mark.integration
 def test_assemblyai_configuration():
     """Test AssemblyAI API configuration."""
     api_key = os.getenv("ASSEMBLYAI_API_KEY")
@@ -162,13 +165,13 @@ def mock_local_storage():
     return mock_service_client
 
 
-
-
+@pytest.mark.integration
 def test_simple():
     """A simple test to verify our test environment."""
     assert True
 
 
+@pytest.mark.integration
 def test_sas_token_generation_local():
     """Test SAS token generation in local development environment."""
     # Mock the input blob
@@ -230,5 +233,3 @@ def test_sas_token_generation_local():
 
         except Exception as e:
             pytest.fail(f"Test failed with error: {str(e)}")
-
-
