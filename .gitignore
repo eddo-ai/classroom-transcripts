@@ -48,3 +48,4 @@ test-output.xml
 # Google OAuth
 credentials.json
 token.json
+container-app-config.json
