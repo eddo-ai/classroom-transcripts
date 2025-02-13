@@ -10,6 +10,7 @@ import logging
 import io
 from dotenv import load_dotenv
 import asyncio
+from azure.data.tables import TableServiceClient, TableEntity
 
 load_dotenv()
 
@@ -172,7 +173,9 @@ async def submit_transcription(file: UploadedFile) -> aai.TranscriptStatus:
 
             # Check if we got immediate status
             if transcript_future.done():
-                return transcript_future.result().status
+                transcript = transcript_future.result()
+                await store_mapping_in_table(file.name, transcript.id, transcript.audio_url)
+                return transcript.status
 
             # If not, wait briefly for completion
             try:
@@ -184,7 +187,9 @@ async def submit_transcription(file: UploadedFile) -> aai.TranscriptStatus:
                     "This one might take a little longer - we'll post the transcript to Google Drive as soon as it's ready."
                 )
 
-            return transcript_future.result().status
+            transcript = transcript_future.result()
+            await store_mapping_in_table(file.name, transcript.id, transcript.audio_url)
+            return transcript.status
 
         else:
             logging.error("File is empty: %s", file.name)
@@ -196,6 +201,26 @@ async def submit_transcription(file: UploadedFile) -> aai.TranscriptStatus:
         st.error("We couldn't transcribe that file. Is that the right file?")
         st.expander("Error details").write(f"{e}")
         return aai.TranscriptStatus.error
+
+
+async def store_mapping_in_table(blob_name, transcript_id, audio_url):
+    try:
+        table_service_client = TableServiceClient.from_connection_string(os.getenv("AZURE_STORAGE_CONNECTION_STRING"))
+        table_client = table_service_client.get_table_client("TranscriptMappings")
+
+        entity = TableEntity()
+        entity["PartitionKey"] = "AudioFiles"
+        entity["RowKey"] = blob_name
+        entity["transcriptId"] = transcript_id
+        entity["audioUrl"] = audio_url
+        entity["uploadTime"] = datetime.utcnow().isoformat()
+
+        table_client.create_entity(entity=entity)
+        logging.info(f"Stored mapping in table: {blob_name} -> {transcript_id}")
+
+    except Exception as e:
+        logging.error(f"Error storing mapping in table: {e}")
+
 
 with st.container(border=True):
     uploaded_file = st.file_uploader(
