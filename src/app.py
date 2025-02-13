@@ -74,7 +74,8 @@ def get_azure_credential():
 
         # Test the credential
         credential.get_token("https://storage.azure.com/.default")
-        logging.debug("Successfully authenticated with Azure using service principal")
+        logging.debug(
+            "Successfully authenticated with Azure using service principal")
         return credential
     except Exception as e:
         logging.error(f"Error authenticating with Azure: {e}")
@@ -125,6 +126,22 @@ try:
             transcripts_container
         )
 
+    # Create table service client and ensure TranscriptMappings table exists
+    try:
+        table_service_client = TableServiceClient.from_connection_string(
+            os.getenv("AZURE_STORAGE_CONNECTION_STRING"))
+        table_client = table_service_client.get_table_client(
+            "TranscriptMappings")
+        try:
+            table_client.get_table_properties()
+            logging.info("TranscriptMappings table exists")
+        except Exception:
+            st.info("Creating TranscriptMappings table...")
+            table_service_client.create_table("TranscriptMappings")
+            logging.info("Created TranscriptMappings table")
+    except Exception as e:
+        logging.error(f"Error setting up table storage: {e}")
+
 except Exception as e:
     logging.error(f"Error connecting to Azure Storage: {e}")
 
@@ -169,12 +186,25 @@ async def submit_transcription(file: UploadedFile) -> aai.TranscriptStatus:
         transcriber = aai.Transcriber(config=transcription_config)
         file_bytes = io.BytesIO(file.getvalue())
         if file_bytes:
+            logging.info(f"Starting transcription for file: {file.name}")
             transcript_future = transcriber.transcribe_async(file_bytes)
 
             # Check if we got immediate status
             if transcript_future.done():
                 transcript = transcript_future.result()
+                logging.info(
+                    f"Got immediate transcription result for {file.name} with ID {transcript.id}")
                 await store_mapping_in_table(file.name, transcript.id, transcript.audio_url)
+
+                # Verify mapping was stored
+                mapping = await get_transcript_mapping(file.name)
+                if mapping:
+                    logging.info(
+                        f"Verified mapping for {file.name}: {mapping}")
+                else:
+                    logging.warning(
+                        f"Could not verify mapping for {file.name}")
+
                 return transcript.status
 
             # If not, wait briefly for completion
@@ -188,7 +218,17 @@ async def submit_transcription(file: UploadedFile) -> aai.TranscriptStatus:
                 )
 
             transcript = transcript_future.result()
+            logging.info(
+                f"Got delayed transcription result for {file.name} with ID {transcript.id}")
             await store_mapping_in_table(file.name, transcript.id, transcript.audio_url)
+
+            # Verify mapping was stored
+            mapping = await get_transcript_mapping(file.name)
+            if mapping:
+                logging.info(f"Verified mapping for {file.name}: {mapping}")
+            else:
+                logging.warning(f"Could not verify mapping for {file.name}")
+
             return transcript.status
 
         else:
@@ -205,8 +245,10 @@ async def submit_transcription(file: UploadedFile) -> aai.TranscriptStatus:
 
 async def store_mapping_in_table(blob_name, transcript_id, audio_url):
     try:
-        table_service_client = TableServiceClient.from_connection_string(os.getenv("AZURE_STORAGE_CONNECTION_STRING"))
-        table_client = table_service_client.get_table_client("TranscriptMappings")
+        table_service_client = TableServiceClient.from_connection_string(
+            os.getenv("AZURE_STORAGE_CONNECTION_STRING"))
+        table_client = table_service_client.get_table_client(
+            "TranscriptMappings")
 
         entity = TableEntity()
         entity["PartitionKey"] = "AudioFiles"
@@ -216,54 +258,79 @@ async def store_mapping_in_table(blob_name, transcript_id, audio_url):
         entity["uploadTime"] = datetime.utcnow().isoformat()
 
         table_client.create_entity(entity=entity)
-        logging.info(f"Stored mapping in table: {blob_name} -> {transcript_id}")
+        logging.info(
+            f"Stored mapping in table: {blob_name} -> {transcript_id}")
 
     except Exception as e:
         logging.error(f"Error storing mapping in table: {e}")
+
+async def get_transcript_mapping(blob_name):
+    """Retrieve transcript mapping for a given blob name."""
+    try:
+        table_service_client = TableServiceClient.from_connection_string(
+            os.getenv("AZURE_STORAGE_CONNECTION_STRING"))
+        table_client = table_service_client.get_table_client(
+            "TranscriptMappings")
+
+        try:
+            entity = table_client.get_entity("AudioFiles", blob_name)
+            return {
+                "transcriptId": entity["transcriptId"],
+                "audioUrl": entity["audioUrl"],
+                "uploadTime": entity["uploadTime"]
+            }
+        except Exception as e:
+            logging.warning(f"No mapping found for blob {blob_name}: {e}")
+            return None
+
+    except Exception as e:
+        logging.error(f"Error retrieving mapping from table: {e}")
+        return None
 
 
 with st.container(border=True):
     uploaded_file = st.file_uploader(
         "Choose an audio file",
         type=[
-        "3ga",
-        "8svx",
-        "aac",
-        "ac3",
-        "aif",
-        "aiff",
-        "alac",
-        "amr",
-        "ape",
-        "au",
-        "dss",
-        "flac",
-        "flv",
-        "m4a",
-        "m4b",
-        "m4p",
-        "m4r",
-        "mp3",
-        "mpga",
-        "ogg",
-        "oga",
-        "mogg",
-        "opus",
-        "qcp",
-        "tta",
-        "voc",
-        "wav",
-        "wma",
-        "wv",
-    ],
-)
+            "3ga",
+            "8svx",
+            "aac",
+            "ac3",
+            "aif",
+            "aiff",
+            "alac",
+            "amr",
+            "ape",
+            "au",
+            "dss",
+            "flac",
+            "flv",
+            "m4a",
+            "m4b",
+            "m4p",
+            "m4r",
+            "mp3",
+            "mpga",
+            "ogg",
+            "oga",
+            "mogg",
+            "opus",
+            "qcp",
+            "tta",
+            "voc",
+            "wav",
+            "wma",
+            "wv",
+        ],
+    )
 
 
 async def handle_upload(uploaded_file: UploadedFile):
     if upload_to_azure(uploaded_file):
         with st.spinner("Submitting for transcription..."):
             status = await submit_transcription(uploaded_file)
-            logging.info(f"✅  '{uploaded_file.name}' submitted for transcription.")
+            logging.info(
+                f"✅  '{uploaded_file.name}' submitted for transcription.")
 
             if status == aai.TranscriptStatus.processing:
                 st.info(

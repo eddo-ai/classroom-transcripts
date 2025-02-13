@@ -106,8 +106,10 @@ narwhals==1.26.0
     #   plotly
 numpy==2.2.2
     # via
+    #   classroom-transcripts (pyproject.toml)
     #   pandas
     #   pydeck
+    #   scipy
     #   streamlit
 oauthlib==3.2.2
     # via requests-oauthlib
@@ -181,6 +183,8 @@ rpds-py==0.22.3
     #   referencing
 rsa==4.9
     # via google-auth
+scipy==1.15.1
+    # via classroom-transcripts (pyproject.toml)
 six==1.17.0
     # via
     #   azure-core
@@ -200,14 +204,12 @@ tornado==6.4.2
 typing-extensions==4.12.2
     # via
     #   altair
-    #   anyio
     #   assemblyai
     #   azure-core
     #   azure-identity
     #   azure-storage-blob
     #   pydantic
     #   pydantic-core
-    #   referencing
     #   streamlit
 tzdata==2025.1
     # via pandas
@@ -215,5 +217,7 @@ uritemplate==4.1.1
     # via google-api-python-client
 urllib3==2.3.0
     # via requests
+watchdog==6.0.0
+    # via streamlit
 websockets==14.2
     # via assemblyai

@@ -1,0 +1,8 @@
+pytest
+azure-storage-blob
+azure-data-tables
+azure-core
+assemblyai
+python-dotenv
+numpy
+scipy
