@@ -1,24 +1,38 @@
-# For more information, please refer to https://aka.ms/vscode-docker-python
-FROM ghcr.io/astral-sh/uv:0.5.31-python3.13-bookworm-slim
+# Based on https://github.com/astral-sh/uv-docker-example/blob/main/standalone.Dockerfile
 
-# Set working directory to where the src module will be
-WORKDIR /workspace
+# First, build the application in the `/app` directory
+FROM ghcr.io/astral-sh/uv:bookworm-slim AS builder
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
+# Configure the Python directory so it is consistent
+ENV UV_PYTHON_INSTALL_DIR /python
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Only use the managed Python version
+ENV UV_PYTHON_PREFERENCE=only-managed
 
-COPY . .
+# Install Python before the project for caching
+RUN uv python install 3.12
 
-# Install dependencies
-RUN uv pip install -r pyproject.toml --system
+WORKDIR /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-install-project --no-dev
+ADD . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
-# Creates a non-root user with an explicit UID and adds permission to access the workspace
-# For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers
-RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /workspace
-USER appuser
+# Then, use a final image without uv
+FROM debian:bookworm-slim
 
-# During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
-CMD ["uv" "run" "streamlit", "run", "app.py"]
+# Copy the Python version
+COPY --from=builder --chown=python:python /python /python
+
+# Copy the application from the builder
+COPY --from=builder --chown=app:app /app /app
+
+# Place executables in the environment at the front of the path
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Run the Streamlit application by default
+CMD ["streamlit", "run", "--server.address", "0.0.0.0", "--server.port", "8501"]
