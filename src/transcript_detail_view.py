@@ -198,6 +198,8 @@ def get_cached_transcript_details(transcript_id: str) -> dict:
         "audio_duration": transcript.audio_duration,
         "language_code": getattr(transcript, "language_code", "en"),
         "confidence": getattr(transcript, "confidence", None),
+        "uploader_name": transcript.uploader_name,  # Add uploader's name
+        "uploader_email": transcript.uploader_email,  # Add uploader's email
     }
 
 
@@ -298,6 +300,10 @@ def show():
                 # Show transcript ID and status
                 st.header(f"📝 Transcript Details")
                 st.caption(f"ID: {selected_id}")
+
+                # Display uploader's name and email
+                st.caption(f"Uploader Name: {transcript_details['uploader_name']}")
+                st.caption(f"Uploader Email: {transcript_details['uploader_email']}")
 
                 # Main content tabs
                 tab_list = ["📝 Transcript", "💭 Insights"]

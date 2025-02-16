@@ -22,9 +22,10 @@ with cols[1]:
     else:
         st.write("❌ email not verified")
 
+st.write(f"Role: {user.role}")
+
 if st.button("Logout"):
     st.logout()
 
 if DEBUG:
     st.sidebar.write(user)
-
