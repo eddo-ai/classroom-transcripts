@@ -316,6 +316,33 @@ async def store_mapping_in_table(blob_dict: dict, transcript_dict: dict):
 #         return None
 
 
+def handle_successful_upload(upload_result, transcript):
+    """Handle successful upload and transcription submission"""
+    st.success("✅ Transcription submitted successfully!")
+
+    # Create a link that will work with your Streamlit multipage app
+    st.info(
+        "We're processing your file. You can upload another file, or go to the menu to view your transcripts."
+    )
+
+    logging.info(
+        f"'{upload_result['name']}' (original: '{upload_result['original_name']}') "
+        f"submitted for transcription"
+    )
+
+    # Store the upload info in session state instead of clearing cache
+    if "recent_uploads" not in st.session_state:
+        st.session_state.recent_uploads = []
+
+    st.session_state.recent_uploads.append(
+        {
+            "blob_name": upload_result["name"],
+            "transcript_id": transcript["id"],
+            "timestamp": datetime.now().isoformat(),
+        }
+    )
+
+
 if st.experimental_user.is_logged_in:
     st.subheader("Upload a Class Recording", divider=True)
     st.write("We'll generate a transcript and post it for you and your coach.")
@@ -362,36 +389,18 @@ if st.experimental_user.is_logged_in:
                 storage_account_key=storage_account_key,
             )
 
-            # Original URL
-            url = blob_sas_url
-
-            # URL-encode special characters
-            safe_url = quote(url, safe=":/?&=%")
-
-            # Markdown link text
-            link_text = "Link Text"
-
-            # Create the Markdown link
+            safe_url = quote(blob_sas_url, safe=":/?&=%")
             markdown_link = f"[{upload_result['original_name']}]({safe_url})"
             st.success(f"Uploaded file to Azure: {markdown_link}")
+
             transcript = asyncio.run(submit_transcription(safe_url))
             if transcript["status"] == "queued":
                 # Store mapping in table
                 asyncio.run(store_mapping_in_table(upload_result, transcript))
 
-                st.success("✅ Transcription submitted successfully!")
-                st.info(
-                    "We'll process that transcript and share it with your coach. You can close this window or upload another file."
-                )
+                # Use the new handler function instead of directly clearing cache
+                handle_successful_upload(upload_result, transcript)
 
-                # Clear cache and rerun to show new upload immediately
-                st.cache_data.clear()
-                st.rerun()
-
-                logging.info(
-                    f"'{upload_result['name']}' (original: '{upload_result['original_name']}') "
-                    f"submitted for transcription"
-                )
             else:
                 st.error("Transcription submission failed - please try again.")
                 logging.error(

@@ -147,13 +147,10 @@ def get_transcript_statuses():
 
 
 @st.cache_data(ttl=300)
-def load_table_data(_table_client):
+def load_table_data(_table_client, user_email, user_role):
     """Load and process table data with caching"""
     # Define a reasonable minimum date (e.g., year 2000)
     MIN_DATE = datetime(2000, 1, 1, tzinfo=pytz.UTC)
-
-    # Get current user
-    user = st.experimental_user
 
     # Get items and filter by current user
     items = list_table_items(_table_client)
@@ -167,9 +164,10 @@ def load_table_data(_table_client):
 
     for i, item in enumerate(items):
         item_dict = dict(item)
-
-        # Skip items that don't belong to current user
-        if item_dict.get("uploaderEmail") != user.email:
+        # Normalize both user_role and uploaderEmail to lowercase for a consistent comparison.
+        if (user_role or "").lower() != "coach" and item_dict.get(
+            "uploaderEmail", ""
+        ).lower() != user_email.lower():
             continue
 
         # Add formatted size
@@ -236,7 +234,13 @@ def get_pending_transcript_statuses(transcript_ids):
 def should_auto_refresh(items_list):
     """Determine if we should auto-refresh based on pending items"""
     pending_statuses = {"queued", "processing"}
-    return any(item.get("status") in pending_statuses for item in items_list)
+    # Only return True if there are actual pending items
+    has_pending = any(item.get("status") in pending_statuses for item in items_list)
+    # Add a timestamp check to prevent rapid refreshes
+    time_since_refresh = (
+        datetime.now(pytz.UTC) - st.session_state.last_refresh
+    ).total_seconds()
+    return has_pending and time_since_refresh >= 30
 
 
 def navigate_to_detail(transcript_id):
@@ -332,6 +336,14 @@ def display_transcript_item(item):
 
 def display_status_overview(items_list):
     """Display status overview in a fragment"""
+    user = st.experimental_user
+    # For non-coach users, ensure we only count items that belong to them.
+    if (getattr(user, "role", "")).lower() != "coach":
+        items_list = [
+            i
+            for i in items_list
+            if i.get("uploaderEmail", "").lower() == user.email.lower()
+        ]
     total_items = len(items_list)
     completed_items = len([i for i in items_list if i.get("status") == "completed"])
     processing_items = len([i for i in items_list if i.get("status") == "processing"])
@@ -351,40 +363,28 @@ def display_status_overview(items_list):
 
 def display_table_data():
     """Display the table data with progress indicators"""
+    user = st.experimental_user
     with st.spinner("Loading transcripts..."):
-        items_list = load_table_data(table_client)
+        items_list = load_table_data(
+            table_client, user.email, getattr(user, "role", None)
+        )
 
     if not items_list:
         st.info("No files found in the system")
         return
 
-    # Check for pending transcripts and update their status
-    pending_transcripts = [
-        item["transcriptId"]
-        for item in items_list
-        if item.get("status") in ["queued", "processing"]
-    ]
-
-    if pending_transcripts:
-        with st.spinner("Updating pending transcripts..."):
-            pending_statuses = get_pending_transcript_statuses(pending_transcripts)
-            # Update items with new statuses
-            for item in items_list:
-                if item.get("transcriptId") in pending_statuses:
-                    item["status"] = pending_statuses[item["transcriptId"]]
-
     # Sort by timestamp
     items_list.sort(key=lambda x: x.get("_timestamp", datetime.min), reverse=True)
 
-    # Auto-refresh controls in sidebar
-    with st.sidebar:
-        st.divider()
-        st.subheader("⚙️ Refresh Settings")
-        st.session_state.auto_refresh = st.toggle(
-            "Auto-refresh pending transcripts",
-            value=st.session_state.auto_refresh,
-            help="Automatically refresh the page when there are pending transcripts",
-        )
+    # Auto-refresh logic
+    if st.session_state.auto_refresh and should_auto_refresh(items_list):
+        time_since_refresh = (
+            datetime.now(pytz.UTC) - st.session_state.last_refresh
+        ).total_seconds()
+        if time_since_refresh >= 30:
+            st.session_state.last_refresh = datetime.now(pytz.UTC)
+            st.cache_data.clear()
+            st.rerun()
 
     # Display status overview in a fragment
     with st.container():
@@ -443,22 +443,11 @@ def display_table_data():
     # Show total count
     st.caption(f"Showing {min(end_idx, total_items)} of {total_items} transcripts")
 
-    # Auto-refresh logic in a separate fragment
-    if st.session_state.auto_refresh and should_auto_refresh(items_list):
-        with st.sidebar:
-            st.caption("🔄 Auto-refreshing every 30 seconds")
-            time_since_refresh = (
-                datetime.now(pytz.UTC) - st.session_state.last_refresh
-            ).total_seconds()
-            if time_since_refresh >= 30:
-                st.session_state.last_refresh = datetime.now(pytz.UTC)
-                st.rerun()
-
     # Add refresh controls in a fragment
     with st.container():
         col1, col2 = st.columns([3, 1])
         with col1:
-            if st.button("Refresh Now", icon="🔄"):
+            if st.button("Refresh Now", icon="��"):
                 st.session_state.last_refresh = datetime.now(pytz.UTC)
                 st.cache_data.clear()
                 st.rerun()
@@ -479,4 +468,13 @@ def list_all_mappings():
     )
 
     entities = table_client.list_entities()
-    return [entity for entity in entities]
+    entities_list = list(entities)
+    user = st.experimental_user
+    # Only filter by uploaderEmail if the user is NOT a coach.
+    if (getattr(user, "role", "")).lower() != "coach":
+        entities_list = [
+            entity
+            for entity in entities_list
+            if entity.get("uploaderEmail", "").lower() == user.email.lower()
+        ]
+    return entities_list

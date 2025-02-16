@@ -23,13 +23,13 @@ list_page = st.Page(
     "src/transcript_list_view.py",
     title="Transcripts",
     icon="🎙️",
-    url_path="/dashboard",
+    url_path="/transcripts",
 )
 detail_page = st.Page(
     "src/transcript_detail_view.py",
-    title="Review Transcript",
-    icon="🎙️",
-    url_path="/detail",
+    title="Transcript Detail",
+    icon="📄",
+    url_path="/transcript_detail",
 )
 
 # Build pages list based on debug setting
