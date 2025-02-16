@@ -12,6 +12,7 @@ from typing import Optional
 import altair as alt
 from src.utils.azure_storage import get_blob_sas_url
 from src.upload import get_account_key_from_connection_string
+from src.utils.google_drive import upload_transcript_to_drive
 
 # Configure AssemblyAI
 aai.settings.api_key = os.getenv("ASSEMBLYAI_API_KEY")
@@ -339,6 +340,9 @@ def show():
                                 "🔊 Download Audio", download_url, type="secondary"
                             )
 
+                # Add a UI element to specify Google Drive folder
+                drive_folder = st.text_input("Google Drive Folder", value="Classroom Transcripts")
+
                 tabs = st.tabs(tab_list)
 
                 with tabs[0]:
@@ -554,6 +558,14 @@ def show():
                             st.write(
                                 f"Duration: {format_duration(transcript.audio_duration) if transcript.audio_duration else 'N/A'}"
                             )
+
+                # Upload transcript to Google Drive
+                drive_response = upload_transcript_to_drive(transcript, filename=f"{drive_folder}/{selected_id}.txt")
+                if not drive_response["success"]:
+                    logging.error(f"Failed to upload transcript to Google Drive: {drive_response['error']}")
+                    st.error("Failed to upload transcript to Google Drive. Please try again.")
+                else:
+                    st.success(f"Transcript uploaded to Google Drive: [View]({drive_response['link']})")
 
             else:
                 st.warning(

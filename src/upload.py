@@ -12,6 +12,7 @@ from src.utils.transcript_mapping import create_upload_entity, update_transcript
 from src.utils.azure_storage import get_blob_sas_url
 from urllib.parse import quote
 from src.utils.table_client import get_table_client
+from src.utils.google_drive import upload_transcript_to_drive
 
 
 def get_azure_credential():
@@ -253,7 +254,15 @@ async def submit_transcription(url: str) -> dict:
         transcriber = aai.Transcriber(config=config)
 
         transcript = transcriber.submit(data=url, config=config)
-        return {"id": transcript.id, "file_url": url, "status": transcript.status}
+
+        # Upload transcript to Google Drive
+        drive_response = upload_transcript_to_drive(transcript)
+        if not drive_response["success"]:
+            logging.error(f"Failed to upload transcript to Google Drive: {drive_response['error']}")
+            st.error("Failed to upload transcript to Google Drive. Please try again.")
+            return {"id": "error", "file_url": url, "status": "error", "error": drive_response["error"]}
+
+        return {"id": transcript.id, "file_url": url, "status": transcript.status, "drive_link": drive_response["link"]}
 
     except Exception as e:
         logging.error(f"Error submitting transcription: {e}")
@@ -339,13 +348,20 @@ def handle_successful_upload(upload_result, transcript):
             "blob_name": upload_result["name"],
             "transcript_id": transcript["id"],
             "timestamp": datetime.now().isoformat(),
+            "drive_link": transcript.get("drive_link", None),
         }
     )
+
+    if transcript.get("drive_link"):
+        st.success(f"Transcript uploaded to Google Drive: [View]({transcript['drive_link']})")
 
 
 if st.experimental_user.is_logged_in:
     st.subheader("Upload a Class Recording", divider=True)
     st.write("We'll generate a transcript and post it for you and your coach.")
+
+    # Add a UI element to specify Google Drive folder
+    drive_folder = st.text_input("Google Drive Folder", value="Classroom Transcripts")
 
     if uploaded_file := st.file_uploader(
         "Choose an audio file",

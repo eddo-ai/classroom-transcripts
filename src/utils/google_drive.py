@@ -84,4 +84,99 @@ def upload_transcript_to_drive(transcript, filename=None):
         return {
             'success': False,
             'error': str(e)
-        } 
+        }
+
+def create_folder(folder_name, parent_folder_id=None):
+    """Create a folder in Google Drive"""
+    try:
+        creds = get_google_credentials()
+        service = build('drive', 'v3', credentials=creds)
+        
+        file_metadata = {
+            'name': folder_name,
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+        
+        if parent_folder_id:
+            file_metadata['parents'] = [parent_folder_id]
+        
+        folder = service.files().create(body=file_metadata, fields='id').execute()
+        return {
+            'success': True,
+            'folder_id': folder.get('id')
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+def rename_folder(folder_id, new_name):
+    """Rename a folder in Google Drive"""
+    try:
+        creds = get_google_credentials()
+        service = build('drive', 'v3', credentials=creds)
+        
+        file_metadata = {
+            'name': new_name
+        }
+        
+        folder = service.files().update(fileId=folder_id, body=file_metadata, fields='id, name').execute()
+        return {
+            'success': True,
+            'folder_id': folder.get('id'),
+            'folder_name': folder.get('name')
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+def delete_folder(folder_id):
+    """Delete a folder in Google Drive"""
+    try:
+        creds = get_google_credentials()
+        service = build('drive', 'v3', credentials=creds)
+        
+        service.files().delete(fileId=folder_id).execute()
+        return {
+            'success': True
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+def move_file_to_folder(file_id, folder_id):
+    """Move a file to a different folder in Google Drive"""
+    try:
+        creds = get_google_credentials()
+        service = build('drive', 'v3', credentials=creds)
+        
+        # Retrieve the existing parents to remove
+        file = service.files().get(fileId=file_id, fields='parents').execute()
+        previous_parents = ",".join(file.get('parents'))
+        
+        # Move the file to the new folder
+        file = service.files().update(
+            fileId=file_id,
+            addParents=folder_id,
+            removeParents=previous_parents,
+            fields='id, parents'
+        ).execute()
+        
+        return {
+            'success': True,
+            'file_id': file.get('id')
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
