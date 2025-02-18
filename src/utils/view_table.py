@@ -43,9 +43,3 @@ def list_table_items(table_client):
         return items
     except Exception as e:
         raise Exception(f"Failed to list table items: {str(e)}")
-
-
-def view_transcript_mappings():
-    """View all entries in the TranscriptMappings table."""
-    table_client = get_table_client()
-    return list_table_items(table_client) 

@@ -10,9 +10,7 @@ import matplotlib.pyplot as plt
 import requests
 from typing import Optional
 import altair as alt
-from src.utils.azure_storage import get_blob_sas_url
-from src.upload import get_account_key_from_connection_string
-from src.utils.table_client import get_table_client
+from src.utils.azure_storage import get_sas_url_for_audio_file_name
 
 # Configure AssemblyAI
 aai.settings.api_key = os.getenv("ASSEMBLYAI_API_KEY")
@@ -210,53 +208,6 @@ def get_cached_transcript_details(transcript_id: str) -> dict:
     }
 
 
-@st.cache_data(ttl=3000)
-def get_blob_sas_url_cached(audio_url: str) -> Optional[str]:
-    """Get cached SAS URL for blob storage audio file."""
-    try:
-        if not audio_url:
-            return None
-
-        # Only process Azure blob storage URLs
-        if "blob.core.windows.net" not in audio_url:
-            st.warning("Audio file not in Azure storage")
-            return None
-
-        # If URL already has a SAS token, return it as is
-        if "?st=" in audio_url:
-            return audio_url
-
-        # Get storage account key from connection string
-        connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-        if not connection_string:
-            st.error("Missing Azure Storage connection string")
-            return None
-
-        # Get account key using utility function
-        storage_account_key = get_account_key_from_connection_string(connection_string)
-        if not storage_account_key:
-            st.error("Could not extract storage account key from connection string")
-            return None
-
-        # Parse URL to get account, container, and blob
-        parts = audio_url.split("/")
-        account = parts[2].split(".")[0]
-        container_name = parts[3]
-        blob_name = "/".join(parts[4:])
-
-        # Use the utility function to get the SAS URL
-        return get_blob_sas_url(
-            blob_name=blob_name,
-            container_name=container_name,
-            storage_account=account,
-            storage_account_key=storage_account_key,
-        )
-
-    except Exception as e:
-        st.warning(f"Could not generate SAS URL: {str(e)}")
-        return None
-
-
 def get_transcript_status(transcript_id: str) -> str:
     """Get fresh transcript status without caching."""
     transcript = aai.Transcript.get_by_id(transcript_id)
@@ -343,7 +294,6 @@ def show():
                             )
 
                 with download_cols[1]:
-                    if (
                         transcript.audio_url
                         and "blob.core.windows.net" in transcript.audio_url
                     ):
@@ -381,6 +331,8 @@ def show():
                         )
 
                     # Audio player
+                    if DEBUG:
+                        st.write(transcript)
                     if (
                         transcript.audio_url
                         and "blob.core.windows.net" in transcript.audio_url

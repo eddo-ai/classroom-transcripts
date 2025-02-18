@@ -37,6 +37,22 @@
         ],
         "projectType": "general"
       }
+    },
+    {
+      "name": "Streamlit Debug",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "streamlit",
+      "args": [
+        "run",
+        "app.py"
+      ],
+      
+      "justMyCode": true,
+      "env": {
+        "AZURE_CLIENT_ID": "${env:AZURE_CLIENT_ID}",
+        "AZURE_TENANT_ID": "${env:AZURE_TENANT_ID}"
+      }
     }
   ]
 }

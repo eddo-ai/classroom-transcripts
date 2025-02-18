@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import logging
 from dotenv import load_dotenv
-from src.utils.user_utils import get_user_roles
 load_dotenv()
 
 # Configure debug settings
@@ -39,31 +38,26 @@ detail_page = st.Page(
 pages_list = [upload_page]
 
 if st.experimental_user.get("is_logged_in"):
+    user = st.experimental_user
     profile_page = st.Page(
         "src/user_profile.py",
-        title=st.experimental_user.get("name"),
+        title=str(user.get("name", "")),
         icon="👤",
         url_path="/profile",
     )
-    pages_list.append(profile_page)
+    # pages_list.append(profile_page)
     pages_list.append(list_page)
-    pages_list.append(detail_page)
     with st.sidebar:
         cols = st.columns([1, 3])
         with cols[0]:
-            st.image(st.experimental_user.get("picture"))
+            if user.get("picture"):
+                st.image(str(user.get("picture")))
         with cols[1]:
-            st.write(st.experimental_user.get("name"))
-            email_display = f"{st.experimental_user.get('email')} ✓" if st.experimental_user.get('email_verified') else "Email not verified."
+            st.write(str(user.get("name", "")))
+            email_display = f"{user.get('email')} ✓" if user.get('email_verified') else "Email not verified."
             st.write(email_display)
-            # Display admin and coach roles
-            roles = get_user_roles(st.experimental_user.get("user_id"))
-            if "admin" in roles:
-                st.write("Admin")
-            if "coach" in roles:
-                st.write("Coach")
-            if st.button("Logout"):
-                st.logout()
+        if st.button("Logout"):
+            st.logout()
 
 pages = st.navigation(pages_list)
 pages.run()
