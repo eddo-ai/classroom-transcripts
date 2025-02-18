@@ -1,3 +1,6 @@
 [server]
 maxUploadSize=2000
 port=8501
+
+[logger]
+level = "debug"

@@ -9,11 +9,17 @@ from azure.data.tables import TableServiceClient, TableEntity
 from datetime import datetime, timedelta
 import asyncio
 from src.utils.transcript_mapping import create_upload_entity, update_transcript_status
-from src.utils.azure_storage import get_blob_sas_url
 from urllib.parse import quote
 from src.utils.table_client import get_table_client
+from utils.azure_storage import get_sas_url_for_audio_file_name
 
-DEBUG = bool(os.getenv("DEBUG", False))
+if logging.getLogger().getEffectiveLevel() >= logging.DEBUG:
+    st.info("Debug mode is enabled.")
+    st.session_state["DEBUG"] = True
+    DEBUG = True
+else:
+    st.session_state["DEBUG"] = False
+    DEBUG = False
 
 def get_azure_credential():
     """Get Azure credential using service principal."""
@@ -59,16 +65,6 @@ def get_azure_credential():
             raise ValueError(f"Failed to authenticate with Azure: {str(e)}")
 
 
-# Get storage account key from connection string
-def get_account_key_from_connection_string(connection_string: str) -> str:
-    """Extract account key from connection string."""
-    if not connection_string:
-        raise ValueError("Connection string is required")
-
-    parts = dict(part.split("=", 1) for part in connection_string.split(";") if part)
-    return parts.get("AccountKey")
-
-
 # Initialize variables for logging
 account_url = None
 uploads_container = "uploads"
@@ -81,14 +77,6 @@ try:
     # Get Azure credential
     credential = get_azure_credential()
     logging.debug("Successfully obtained Azure credential")
-
-    # Get storage account key from connection string
-    connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-    if connection_string:
-        storage_account_key = get_account_key_from_connection_string(connection_string)
-        logging.debug(
-            "Successfully obtained storage account key from connection string"
-        )
 
     # Create BlobServiceClient
     storage_account = os.getenv("AZURE_STORAGE_ACCOUNT", "classroomtranscripts")
@@ -393,16 +381,11 @@ if st.experimental_user.get("is_logged_in"):
             submit_button = st.form_submit_button("Submit")
 
             if submit_button:
-                if not class_name.strip():
+                if not class_name:
                     st.error("Please enter a class name")
                 else:
                     if upload_result := upload_to_azure(uploaded_file):
-                        blob_sas_url = get_blob_sas_url(
-                            blob_name=upload_result["name"],
-                            container_name=uploads_container,
-                            storage_account=storage_account,
-                            storage_account_key=storage_account_key,
-                        )
+                        blob_sas_url = get_sas_url_for_audio_file_name(upload_result["name"])
 
                         safe_url = quote(blob_sas_url, safe=":/?&=%")
                         markdown_link = (

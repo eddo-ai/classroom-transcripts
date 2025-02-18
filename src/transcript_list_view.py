@@ -8,7 +8,15 @@ import logging
 
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
-DEBUG = bool(os.getenv("DEBUG", False))
+if logging.getLogger().getEffectiveLevel() >= logging.DEBUG:
+    st.info("Debug mode is enabled.")
+    st.session_state["DEBUG"] = True
+    DEBUG = True
+else:
+    st.session_state["DEBUG"] = False
+    DEBUG = False
+
+
 TRANSCRIPT_PREVIEW_MAX_LENGTH = 1000
 TRANSCRIPT_PREVIEW_SPEAKER_TURNS = 5
 
@@ -73,7 +81,7 @@ if "current_page" not in st.session_state:
 ADMIN_EMAILS = [email.strip().lower() for email in st.secrets.admin_emails.split(",")]
 
 # Debug logging for admin list
-if DEBUG:
+if bool(st.session_state.get("DEBUG", False)):
     st.write("Debug - Admin emails:", ADMIN_EMAILS)
 
 
@@ -224,7 +232,7 @@ def load_table_data(_table_client):
     validated_email = user.email if user.email_verified else None
 
     if validated_email is not None:
-        table_name = "debug_transcriptions" if DEBUG else "Transcriptions"
+        table_name = "debug_transcriptions" if bool(st.session_state.get("DEBUG", False)) else "Transcriptions"
         # Use consolidated query function
         items = query_table_entities(_table_client, str(validated_email), table_name)
 
@@ -278,8 +286,8 @@ def load_table_data(_table_client):
             item_dict["uploadTime"] = MIN_DATE
 
         # Add class name and description
-        item_dict["className"] = item_dict.get("className", "N/A")
-        item_dict["description"] = item_dict.get("description", "N/A")
+        item_dict["className"] = item_dict.get("className", None)
+        item_dict["description"] = item_dict.get("description", None)
 
         items_list.append(item_dict)
 
@@ -328,31 +336,21 @@ def navigate_to_detail(transcript_id):
 def display_transcript_item(item):
     """Display a single transcript item in a fragment"""
     # Get status info for formatting
-    status = item.get("status", "N/A")
-    status_color = {
-        "completed": "🟢",
-        "processing": "🟡",
-        "error": "🔴",
-        "failed": "🔴",
-        "queued": "⚪",
-    }.get(status, "⚪")
-
     # Format upload time
     upload_time = item.get("uploadTime")
     upload_time_str = localized_timestamp(upload_time)
 
     with st.expander(f"📄 {item['originalFileName']}", expanded=False):
-        # Header with key info
-        st.markdown(f"""
-        ### File Information
-        | Detail | Value |
-        |--------|-------|
-        | Size | {item.get("formatted_size", "N/A")} |
-        | Uploaded | {upload_time_str} |
-        | Status | {status_color} {status.title()} |
-        | Class Name | {item.get("className", "N/A")} |
-        | Description | {item.get("description", "N/A")} |
-        """)
+        class_name = item.get("className", "")
+        description = item.get("description", "")
+        size = item.get("formatted_size", "")
+        upload_time = item.get("uploadTime")
+        upload_time_str = localized_timestamp(upload_time)
+
+        st.write(f"**{class_name}**")
+        st.write(description)
+        st.write(f"Uploaded {upload_time_str}")
+        st.write(f"Size: {size}")
 
         # Audio player
         audio_url_with_sas = get_sas_url_for_audio_file_name(item.get("RowKey"))
@@ -361,23 +359,23 @@ def display_transcript_item(item):
 
         # Transcript preview with improved markdown
         if item.get("status") == "completed" and item.get("transcriptId"):
-            try:
-                transcript = aai.Transcript.get_by_id(item["transcriptId"])
-
-                # Good transcriptions have text and utterances
-                if transcript.text and transcript.utterances:
-                    ### Show 3 utterances and a link to download the full transcript
-                    st.markdown("#### 📝 Transcript Preview")
-                    for utterance in transcript.utterances[:TRANSCRIPT_PREVIEW_SPEAKER_TURNS]:
-                        if DEBUG:
-                            st.write(utterance)
-                        st.markdown(f"**Speaker {utterance.speaker}**:  {utterance.text}")
-                    ## TODO: Name speakers
-                elif transcript.text:
-                    st.info("AI failed to distinguish speakers.")
-                    st.write(transcript.text[:TRANSCRIPT_PREVIEW_MAX_LENGTH])
-            except Exception as e:
-                st.warning("Could not load transcript preview")
+            transcript = aai.Transcript.get_by_id(item["transcriptId"])  
+            if DEBUG:
+                @st.dialog("Transcript data")
+                def show_transcript_data(transcript):
+                    st.write(transcript.json_response)
+                if st.button("Show transcript data", key=f"show_transcript_data_{item['RowKey']}"):
+                    show_transcript_data(transcript)
+            # Good transcriptions have text and utterances
+            if transcript.text and transcript.utterances:
+                ### Show 3 utterances and a link to download the full transcript
+                st.markdown("#### 📝 Transcript Preview")
+                for utterance in transcript.utterances[:TRANSCRIPT_PREVIEW_SPEAKER_TURNS]:
+                    st.markdown(f"**Speaker {utterance.speaker}**:  {utterance.text}")
+                ## TODO: Name speakers
+            elif transcript.text:
+                st.info("AI failed to distinguish speakers.")
+                st.write(transcript.text[:TRANSCRIPT_PREVIEW_MAX_LENGTH])
         elif item.get("status") == "processing":
             st.markdown("""
             #### ⏳ Processing
