@@ -5,6 +5,14 @@ import pytz
 import assemblyai as aai
 import os
 import logging
+from docx import Document
+from io import BytesIO
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import pickle
 
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
@@ -110,7 +118,6 @@ def format_file_size(size_in_bytes):
 # Get timezone abbreviation
 
 
-
 def localized_timestamp(timestamp):
     """Get localized timestamp"""
     local_timestamp = timestamp.astimezone(local_tz)
@@ -132,6 +139,99 @@ def get_transcript_status(transcript_id):
             return "error"  # Transcript doesn't exist in AssemblyAI
         st.error(f"Error getting transcript status: {str(e)}")
         return "error"
+
+
+def generate_transcript_markdown(transcript, max_length=None, max_speaker_turns=None):
+    """
+    Generate markdown formatted text from an AssemblyAI transcript.
+
+    Args:
+        transcript: AssemblyAI Transcript object
+        max_length (int, optional): Maximum length of text to include
+        max_speaker_turns (int, optional): Maximum number of speaker turns to include
+
+    Returns:
+        str: Markdown formatted transcript text
+    """
+    if not transcript:
+        return "No transcript available"
+
+    markdown_lines = []
+
+    # Handle transcripts with speaker detection
+    if transcript.utterances:
+        for i, utterance in enumerate(transcript.utterances):
+            # Break if we've hit the max speaker turns
+            if max_speaker_turns and i >= max_speaker_turns:
+                markdown_lines.append(
+                    "\n*[Additional transcript content truncated...]*"
+                )
+                break
+
+            speaker_text = f"**Speaker {utterance.speaker}**: {utterance.text}"
+            markdown_lines.append(speaker_text)
+
+            # Check total length if max_length specified
+            current_text = "\n".join(markdown_lines)
+            if max_length and len(current_text) >= max_length:
+                markdown_lines[-1] = markdown_lines[-1][
+                    : max_length
+                    - len("...\n\n*[Additional transcript content truncated...]*")
+                ]
+                markdown_lines.append(
+                    "\n*[Additional transcript content truncated...]*"
+                )
+                break
+
+    # Handle transcripts without speaker detection
+    elif transcript.text:
+        text = transcript.text
+        if max_length:
+            text = text[:max_length] + (
+                "..." if len(transcript.text) > max_length else ""
+            )
+        markdown_lines.append(text)
+
+    return "\n\n".join(markdown_lines)
+
+
+def generate_transcript_docx(transcript):
+    """
+    Generate a docx file from an AssemblyAI transcript.
+
+    Args:
+        transcript: AssemblyAI Transcript object
+
+    Returns:
+        bytes: The generated docx file as bytes
+    """
+    doc = Document()
+    doc.add_heading("Transcript", 0)
+
+    if transcript.utterances:
+        # Add each speaker's text as a paragraph
+        for utterance in transcript.utterances:
+            p = doc.add_paragraph()
+            # Add speaker label in bold
+            speaker_run = p.add_run(f"Speaker {utterance.speaker}: ")
+            speaker_run.bold = True
+            # Add the text
+            p.add_run(utterance.text)
+            # Add spacing between utterances
+            p.add_run("\n")
+    else:
+        # Add the full text as a single paragraph
+        doc.add_paragraph(transcript.text)
+
+    # Add metadata
+    doc.core_properties.title = "Transcript"
+    doc.core_properties.comments = "Generated from AssemblyAI transcription"
+
+    # Save to bytes
+    docx_bytes = BytesIO()
+    doc.save(docx_bytes)
+    docx_bytes.seek(0)
+    return docx_bytes.getvalue()
 
 
 st.title("🔍 Audio Files & Transcriptions")
@@ -232,7 +332,11 @@ def load_table_data(_table_client):
     validated_email = user.email if user.email_verified else None
 
     if validated_email is not None:
-        table_name = "debug_transcriptions" if bool(st.session_state.get("DEBUG", False)) else "Transcriptions"
+        table_name = (
+            "debug_transcriptions"
+            if bool(st.session_state.get("DEBUG", False))
+            else "Transcriptions"
+        )
         # Use consolidated query function
         items = query_table_entities(_table_client, str(validated_email), table_name)
 
@@ -359,23 +463,127 @@ def display_transcript_item(item):
 
         # Transcript preview with improved markdown
         if item.get("status") == "completed" and item.get("transcriptId"):
-            transcript = aai.Transcript.get_by_id(item["transcriptId"])  
+            transcript = aai.Transcript.get_by_id(item["transcriptId"])
             if DEBUG:
+
                 @st.dialog("Transcript data")
                 def show_transcript_data(transcript):
                     st.write(transcript.json_response)
-                if st.button("Show transcript data", key=f"show_transcript_data_{item['RowKey']}"):
+
+                if st.button(
+                    "Show transcript data", key=f"show_transcript_data_{item['RowKey']}"
+                ):
                     show_transcript_data(transcript)
+
             # Good transcriptions have text and utterances
             if transcript.text and transcript.utterances:
-                ### Show 3 utterances and a link to download the full transcript
+                # Add download buttons and view full transcript in a row
+                col1, col2, col3 = st.columns([1, 1, 1])
+
+                with col1:
+                    # Create download button for markdown
+                    full_markdown = generate_transcript_markdown(transcript)
+                    st.download_button(
+                        label="Download as Markdown",
+                        data=full_markdown,
+                        file_name=f"{item['originalFileName']}.md",
+                        mime="text/markdown",
+                        key=f"download_transcript_md_{item['RowKey']}",
+                    )
+
+                with col2:
+                    # Create download button for docx
+                    docx_bytes = generate_transcript_docx(transcript)
+                    st.download_button(
+                        label="Download as Word",
+                        data=docx_bytes,
+                        file_name=f"{item['originalFileName']}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key=f"download_transcript_docx_{item['RowKey']}",
+                    )
+
+                with col3:
+                    if st.secrets.get("GOOGLE_DRIVE_ENABLED", False):
+                        if st.button(
+                            "Save to Google Drive", key=f"gdrive_{item['RowKey']}"
+                        ):
+                            with st.spinner("Uploading to Google Drive..."):
+                                # Upload markdown version
+                                md_result = upload_to_google_drive(
+                                    full_markdown,
+                                    f"{item['originalFileName']}.md",
+                                    "text/markdown",
+                                )
+                                # Upload docx version
+                                docx_result = upload_to_google_drive(
+                                    docx_bytes,
+                                    f"{item['originalFileName']}.docx",
+                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                )
+
+                                if md_result and docx_result:
+                                    st.success("Files uploaded to Google Drive!")
+                                    st.markdown(
+                                        f"[View Markdown]({md_result['webViewLink']})"
+                                    )
+                                    st.markdown(
+                                        f"[View Word Document]({docx_result['webViewLink']})"
+                                    )
+
+                ### Show preview and full transcript dialog
                 st.markdown("#### 📝 Transcript Preview")
-                for utterance in transcript.utterances[:TRANSCRIPT_PREVIEW_SPEAKER_TURNS]:
-                    st.markdown(f"**Speaker {utterance.speaker}**:  {utterance.text}")
-                ## TODO: Name speakers
+                preview_markdown = generate_transcript_markdown(
+                    transcript, max_speaker_turns=TRANSCRIPT_PREVIEW_SPEAKER_TURNS
+                )
+                st.markdown(preview_markdown)
+
+                # Define dialog first
+                @st.dialog("Full Transcript")
+                def show_full_transcript(transcript):
+                    full_markdown = generate_transcript_markdown(transcript)
+                    st.markdown(full_markdown)
+
             elif transcript.text:
                 st.info("AI failed to distinguish speakers.")
-                st.write(transcript.text[:TRANSCRIPT_PREVIEW_MAX_LENGTH])
+                preview_text = transcript.text[:TRANSCRIPT_PREVIEW_MAX_LENGTH]
+                st.write(preview_text)
+
+                # Define dialog first
+                @st.dialog("Full Transcript")
+                def show_full_transcript_no_speakers(transcript):
+                    st.write(transcript.text)
+
+                # Add download buttons and view full transcript in a row
+                col1, col2, col3 = st.columns([1, 1, 1])
+
+                with col1:
+                    if st.button(
+                        "View Full Transcript",
+                        key=f"view_transcript_no_speakers_{item['RowKey']}",
+                    ):
+                        show_full_transcript_no_speakers(transcript)
+
+                with col2:
+                    # Create download button for text
+                    st.download_button(
+                        label="Download as Text",
+                        data=transcript.text,
+                        file_name=f"{item['originalFileName']}.txt",
+                        mime="text/plain",
+                        key=f"download_transcript_txt_{item['RowKey']}",
+                    )
+
+                with col3:
+                    # Create download button for docx
+                    docx_bytes = generate_transcript_docx(transcript)
+                    st.download_button(
+                        label="Download as Word",
+                        data=docx_bytes,
+                        file_name=f"{item['originalFileName']}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key=f"download_transcript_docx_no_speakers_{item['RowKey']}",
+                    )
+
         elif item.get("status") == "processing":
             st.markdown("""
             #### ⏳ Processing
@@ -505,6 +713,76 @@ def display_table_data():
 
     # Show total count
     st.caption(f"Showing {min(end_idx, total_items)} of {total_items} transcripts")
+
+
+# If modifying these scopes, delete the file token.pickle.
+SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+
+
+def get_google_drive_service():
+    """
+    Get or create Google Drive service.
+    Returns:
+        service: Google Drive API service instance
+    """
+    creds = None
+    # The file token.pickle stores the user's access and refresh tokens
+    if os.path.exists("token.pickle"):
+        with open("token.pickle", "rb") as token:
+            creds = pickle.load(token)
+
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(port=8501)
+        # Save the credentials for the next run
+        with open("token.pickle", "wb") as token:
+            pickle.dump(creds, token)
+
+    return build("drive", "v3", credentials=creds)
+
+
+def upload_to_google_drive(content, filename, mime_type):
+    """
+    Upload content to Google Drive.
+
+    Args:
+        content: The content to upload (bytes or string)
+        filename: Name of the file to create
+        mime_type: MIME type of the file
+
+    Returns:
+        dict: File metadata from Google Drive or None if upload failed
+    """
+    try:
+        service = get_google_drive_service()
+
+        # Convert string content to bytes if needed
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+
+        # Create file metadata
+        file_metadata = {"name": filename}
+
+        # Create media
+        fh = BytesIO(content)
+        media = MediaIoBaseUpload(fh, mimetype=mime_type, resumable=True)
+
+        # Upload file
+        file = (
+            service.files()
+            .create(body=file_metadata, media_body=media, fields="id, webViewLink")
+            .execute()
+        )
+
+        return file
+
+    except Exception as e:
+        st.error(f"Failed to upload to Google Drive: {str(e)}")
+        return None
 
 
 display_table_data()

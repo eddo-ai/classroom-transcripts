@@ -27,12 +27,6 @@ list_page = st.Page(
     icon="🎙️",
     url_path="/transcripts",
 )
-detail_page = st.Page(
-    "src/transcript_detail_view.py",
-    title="Transcript Detail",
-    icon="📄",
-    url_path="/transcript_detail",
-)
 
 # Build pages list based on debug setting
 pages_list = [upload_page]
