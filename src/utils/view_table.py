@@ -10,9 +10,9 @@ def get_table_client():
     load_dotenv()
 
     # Get storage account name and connection string from environment
-    account_name = os.getenv("AZURE_STORAGE_ACCOUNT")
+    account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
     connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-    
+
     if not account_name:
         raise ValueError("AZURE_STORAGE_ACCOUNT environment variable is required")
 
