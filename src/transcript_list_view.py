@@ -7,12 +7,6 @@ import os
 import logging
 from docx import Document
 from io import BytesIO
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-import pickle
 
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
