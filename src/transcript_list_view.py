@@ -80,7 +80,10 @@ if "current_page" not in st.session_state:
     st.session_state.current_page = 1
 
 # Get admin emails from Streamlit secrets
-ADMIN_EMAILS = [email.strip().lower() for email in st.secrets.admin_emails.split(",")]
+ADMIN_EMAILS = [
+    email.strip().lower()
+    for email in st.secrets.get("admin_emails", "").split(",")
+]
 
 # Debug logging for admin list
 if bool(st.session_state.get("DEBUG", False)):
