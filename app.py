@@ -9,6 +9,7 @@ if DEBUG:
     logging.getLogger("watchdog").setLevel(logging.INFO)
     logging.basicConfig(level=logging.DEBUG)
     st.write("Debug mode enabled")
+    
 
 # Retrieve access token from environment variable
 ACCESS_TOKEN = os.getenv("MGMT_API_ACCESS_TOKEN")

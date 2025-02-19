@@ -15,6 +15,7 @@ from utils.azure_storage import get_sas_url_for_audio_file_name
 
 DEBUG = bool(st.session_state.get("DEBUG", False))
 
+
 def get_azure_credential():
     """Get Azure credential using service principal."""
     try:
@@ -285,8 +286,28 @@ async def store_mapping_in_table(
         raise
 
 
-def handle_successful_upload(upload_result, transcript):
-    """Handle successful upload and transcription submission"""
+def handle_successful_upload(
+    upload_result: dict, transcript: dict, class_name: str
+) -> None:
+    """Handle successful upload and transcription submission.
+
+    Args:
+        upload_result: Dictionary containing upload details (name, original_name, size)
+        transcript: Dictionary containing transcript details (id)
+        class_name: Name of the class for the recording
+    """
+    # Validate required keys
+    required_keys = {"name", "original_name", "size"}
+    if not all(key in upload_result for key in required_keys):
+        logging.error(f"Missing required keys in upload_result: {upload_result}")
+        st.error("Invalid upload result format")
+        return
+
+    if "id" not in transcript:
+        logging.error(f"Missing id in transcript result: {transcript}")
+        st.error("Invalid transcript format")
+        return
+
     # Store the upload info in session state
     if "recent_uploads" not in st.session_state:
         st.session_state.recent_uploads = []
@@ -379,7 +400,9 @@ if st.experimental_user.get("is_logged_in"):
                     st.error("Please enter a class name")
                 else:
                     if upload_result := upload_to_azure(uploaded_file):
-                        blob_sas_url = get_sas_url_for_audio_file_name(upload_result["name"])
+                        blob_sas_url = get_sas_url_for_audio_file_name(
+                            upload_result["name"]
+                        )
 
                         safe_url = quote(blob_sas_url, safe=":/?&=%")
                         markdown_link = (
@@ -396,8 +419,10 @@ if st.experimental_user.get("is_logged_in"):
                                 )
                             )
 
-                            # Use the new handler function instead of directly clearing cache
-                            handle_successful_upload(upload_result, transcript)
+                            # Pass class_name to the handler function
+                            handle_successful_upload(
+                                upload_result, transcript, class_name
+                            )
 
                         else:
                             st.error(
@@ -419,7 +444,5 @@ else:
         st.login()
 
 
-
 if feedback_email := os.getenv("FEEDBACK_EMAIL"):
     st.caption(f"📧 Help and feedback: {feedback_email}")
-
