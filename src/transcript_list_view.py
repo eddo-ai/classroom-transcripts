@@ -303,7 +303,7 @@ def query_table_entities(table_client, user_email: str):
         else:
             if DEBUG:
                 st.info(f"Debug - User {user_email} is admin, fetching all items")
-            items = list_table_items(table_name)
+            items = list_table_items(st.session_state.get("table_name", st.secrets.get("AZURE_STORAGE_TABLE_NAME")))
 
         if DEBUG:
             st.info(f"Debug - Number of items fetched: {len(items) if items else 0}")
