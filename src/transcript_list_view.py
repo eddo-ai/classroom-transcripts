@@ -149,7 +149,9 @@ def generate_transcript_markdown(transcript, max_length=None, max_speaker_turns=
         for i, utterance in enumerate(transcript.utterances):
             # Break if we've hit the max speaker turns
             if max_speaker_turns and i >= max_speaker_turns:
-                markdown_lines.append("\n*[Additional transcript content truncated...]*")
+                markdown_lines.append(
+                    "\n*[Additional transcript content truncated...]*"
+                )
                 break
 
             # Format timestamp as [00:00:00]
@@ -158,18 +160,26 @@ def generate_transcript_markdown(transcript, max_length=None, max_speaker_turns=
             minutes = int((start_seconds % 3600) // 60)
             seconds = int(start_seconds % 60)
             timestamp = f"[{hours:02d}:{minutes:02d}:{seconds:02d}]"
-            
+
             # Format as [timestamp] **Speaker X**: text
-            speaker_letter = chr(65 + (utterance.speaker - 1)) if isinstance(utterance.speaker, int) else utterance.speaker
+            speaker_letter = (
+                chr(65 + (utterance.speaker - 1))
+                if isinstance(utterance.speaker, int)
+                else utterance.speaker
+            )
             speaker_text = f"{timestamp} **Speaker {speaker_letter}**: {utterance.text}"
             markdown_lines.append(speaker_text)
 
             # Check total length if max_length specified
             current_text = "\n".join(markdown_lines)
             if max_length and len(current_text) >= max_length:
-                truncate_length = max_length - len("\n\n*[Additional transcript content truncated...]*")
+                truncate_length = max_length - len(
+                    "\n\n*[Additional transcript content truncated...]*"
+                )
                 markdown_lines[-1] = str(markdown_lines[-1])[:truncate_length]
-                markdown_lines.append("\n*[Additional transcript content truncated...]*")
+                markdown_lines.append(
+                    "\n*[Additional transcript content truncated...]*"
+                )
                 break
 
     # Handle transcripts without speaker detection
@@ -177,7 +187,9 @@ def generate_transcript_markdown(transcript, max_length=None, max_speaker_turns=
         text = transcript.text
         if max_length:
             truncate_length = max_length
-            text = str(text)[:truncate_length] + ("..." if len(transcript.text) > truncate_length else "")
+            text = str(text)[:truncate_length] + (
+                "..." if len(transcript.text) > truncate_length else ""
+            )
         markdown_lines.append(text)
 
     return "\n\n".join(markdown_lines)
@@ -437,14 +449,6 @@ def display_transcript_item(item):
             description = item.get("description", "")
             size = item.get("formatted_size", "")
 
-            # Show status in the header of the content
-            if status in ["queued", "processing"]:
-                st.markdown(
-                    "**Status: Processing** - This typically takes 1-2 minutes."
-                )
-            elif status in ["error", "failed"]:
-                st.markdown("**Status: Error** - Please try uploading the file again.")
-
             if class_name:
                 st.write(f"**Class**: {class_name}")
                 st.write(f"**File**: {original_file_name}")
@@ -552,16 +556,28 @@ def display_transcript_item(item):
                         st.write(transcript.text)
 
             elif status in ["queued", "processing"]:
-                st.markdown("""
-                #### ⏳ Processing
-                The transcript is still being generated. This typically takes 1-2 minutes.
-                """)
+                with st.container(border=True):
+                    st.markdown(
+                        """
+                        #### ⏳ Processing
+                        The transcript is still being generated. This typically takes 1-2 minutes.
+                        """
+                    )
+                    if st.button(
+                        "Refresh Status",
+                        icon="🔄",
+                        key=f"refresh_status_body_{row_key}",
+                    ):
+                        st.rerun()
 
             elif status in ["error", "failed"]:
-                st.markdown("""
-                #### ❌ Error
-                There was a problem processing this transcript. Please try uploading the file again.
-                """)
+                with st.container(border=True):
+                    st.markdown(
+                        """
+                        #### ❌ Error
+                        There was a problem processing this transcript. Please try uploading the file again.
+                        """
+                    )
 
     except pydantic.ValidationError:
         # Handle case where transcript data is invalid/missing

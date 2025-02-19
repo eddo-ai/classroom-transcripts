@@ -351,27 +351,54 @@ if st.experimental_user.get("is_logged_in"):
         # Get filename without extension for default class name
         default_class_name = os.path.splitext(uploaded_file.name)[0]
 
-        # Show form after file is selected
-        with st.form("upload_details"):
+        # Initialize session state
+        if "speaker_count" not in st.session_state:
+            st.session_state.speaker_count = 2
+        if "use_speaker_count" not in st.session_state:
+            st.session_state.use_speaker_count = True
+        if "description" not in st.session_state:
+            st.session_state.description = ""
+
+        # Create a container with a border for the form-like interface
+        with st.container(border=True):
             st.write("### Add Details")
-            class_name = st.text_input("Class Name", value=default_class_name)
-            speaker_count = st.slider(
-                "Expected Number of Speakers",
-                min_value=1,
-                max_value=10,
-                value=3,
-                help="Estimate how many different speakers are in this recording",
+
+            # Class name input
+            st.session_state.class_name = st.text_input(
+                "Class Name", key="class_name_input", value=default_class_name
             )
-            description = st.text_area(
+
+            # Speaker settings section
+            st.toggle(
+                "Set expected number of speakers",
+                value=st.session_state.use_speaker_count,
+                key="use_speaker_count",
+                help="""If you know how many speakers are in the recording, 
+                set the expected number of speakers. The default is 2, which will
+                work for most recordings, with Speaker A being teacher and Speaker B being any student.""",
+            )
+
+            if st.session_state.use_speaker_count:
+                st.slider(
+                    "Expected Number of Speakers",
+                    min_value=1,
+                    max_value=10,
+                    value=st.session_state.speaker_count,
+                    key="speaker_count",
+                    help="Estimate how many different speakers are in this recording",
+                )
+
+            # Description input
+            st.text_area(
                 "Description (optional)",
-                value="",
+                value=st.session_state.description,
+                key="description",
                 help="Optional: Add any notes about this recording that might be helpful for your coach.",
             )
 
-            submit_button = st.form_submit_button("Submit")
-
-            if submit_button:
-                if not class_name:
+            # Submit button
+            if st.button("Submit", type="primary", use_container_width=True):
+                if not st.session_state.class_name:
                     st.error("Please enter a class name")
                 else:
                     if upload_result := upload_to_azure(uploaded_file):
@@ -382,7 +409,9 @@ if st.experimental_user.get("is_logged_in"):
                         # Create new config with selected speaker count
                         config = aai.TranscriptionConfig(
                             speaker_labels=True,
-                            speakers_expected=speaker_count,
+                            speakers_expected=st.session_state.speaker_count
+                            if st.session_state.use_speaker_count
+                            else None,
                             speech_model=aai.SpeechModel.best,
                             iab_categories=True,
                             auto_chapters=True,
@@ -420,13 +449,16 @@ if st.experimental_user.get("is_logged_in"):
                             # Store mapping in table
                             asyncio.run(
                                 store_mapping_in_table(
-                                    upload_result, transcript, class_name, description
+                                    upload_result,
+                                    transcript,
+                                    st.session_state.class_name,
+                                    st.session_state.description,
                                 )
                             )
 
                             # Pass class_name to the handler function
                             handle_successful_upload(
-                                upload_result, transcript, class_name
+                                upload_result, transcript, st.session_state.class_name
                             )
 
                         else:
