@@ -36,9 +36,9 @@ def get_table_client(table_name: str):
         raise
 
 
-def list_table_items(filter_query=None):
+def list_table_items(table_name: str, filter_query=None):
     """List items from the table with optional filtering."""
-    client = get_table_client()
+    client = get_table_client(table_name)
     try:
         if filter_query:
             return list(client.query_entities(filter_query))
