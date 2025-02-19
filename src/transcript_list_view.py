@@ -12,6 +12,7 @@ import pydantic
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
 DEBUG = bool(st.secrets.get("DEBUG", False))
+table_name = st.session_state.get("table_name", st.secrets.get("AZURE_STORAGE_TABLE_NAME"))
 TRANSCRIPT_PREVIEW_MAX_LENGTH = 1000
 TRANSCRIPT_PREVIEW_SPEAKER_TURNS = 5
 
@@ -227,7 +228,7 @@ def generate_transcript_docx(transcript):
 st.title("🔍 Audio Files & Transcriptions")
 
 # Initialize table client
-table_client = get_table_client(st.session_state.get("table_name"))
+table_client = get_table_client(table_name)
 
 if DEBUG:
     st.write(
@@ -245,7 +246,6 @@ def can_view_transcript(transcript_email: str, user_email: str) -> bool:
     return transcript_email.lower() == user_email.lower()
 
 
-@st.cache_data(ttl=300)
 def get_transcript_statuses():
     """Get all transcript statuses in one API call"""
     try:
@@ -307,9 +307,7 @@ def query_table_entities(table_client, user_email: str):
         else:
             if DEBUG:
                 st.info(f"Debug - User {user_email} is admin, fetching all items")
-            items = list_table_items(
-                st.session_state.get("table_name", "Transcriptions")
-            )
+            items = list_table_items(table_name)
 
         if DEBUG:
             st.info(f"Debug - Number of items fetched: {len(items) if items else 0}")
@@ -323,7 +321,6 @@ def query_table_entities(table_client, user_email: str):
         return []
 
 
-@st.cache_data(ttl=300)
 def load_table_data(_table_client):
     """Load and process table data with caching"""
     MIN_DATE = datetime(2000, 1, 1, tzinfo=pytz.UTC)
@@ -393,7 +390,6 @@ def load_table_data(_table_client):
     return items_list
 
 
-@st.cache_data(ttl=30)  # Cache for 30 seconds only for pending items
 def get_pending_transcript_statuses(transcript_ids):
     """Get status updates for pending transcripts"""
     if not transcript_ids:
