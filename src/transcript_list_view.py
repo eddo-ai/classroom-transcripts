@@ -12,7 +12,9 @@ import pydantic
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
 DEBUG = bool(st.secrets.get("DEBUG", False))
-table_name = st.session_state.get("table_name", st.secrets.get("AZURE_STORAGE_TABLE_NAME"))
+table_name = st.session_state.get(
+    "table_name", st.secrets.get("AZURE_STORAGE_TABLE_NAME")
+)
 TRANSCRIPT_PREVIEW_MAX_LENGTH = 1000
 TRANSCRIPT_PREVIEW_SPEAKER_TURNS = 5
 
@@ -28,12 +30,6 @@ if "transcription_statuses" not in st.session_state:
         "error",  # Failed
         "failed",  # Another error state
     ]
-
-# Initialize session state for auto-refresh
-if "auto_refresh" not in st.session_state:
-    st.session_state.auto_refresh = True
-if "last_refresh" not in st.session_state:
-    st.session_state.last_refresh = datetime.now(pytz.UTC)
 
 # US timezone options
 US_TIMEZONES = [
@@ -388,34 +384,6 @@ def load_table_data(_table_client):
         items_list.append(item_dict)
 
     return items_list
-
-
-def get_pending_transcript_statuses(transcript_ids):
-    """Get status updates for pending transcripts"""
-    if not transcript_ids:
-        return {}
-
-    status_map = {}
-    for transcript_id in transcript_ids:
-        try:
-            transcript = aai.Transcript.get_by_id(transcript_id)
-            status_map[transcript_id] = transcript.status.value
-        except Exception as e:
-            logging.error(f"Error getting status for {transcript_id}: {e}")
-            status_map[transcript_id] = "error"
-    return status_map
-
-
-def should_auto_refresh(items_list):
-    """Determine if we should auto-refresh based on pending items"""
-    pending_statuses = {"queued", "processing"}
-    # Only return True if there are actual pending items
-    has_pending = any(item.get("status") in pending_statuses for item in items_list)
-    # Add a timestamp check to prevent rapid refreshes
-    time_since_refresh = (
-        datetime.now(pytz.UTC) - st.session_state.last_refresh
-    ).total_seconds()
-    return has_pending and time_since_refresh >= 30
 
 
 def navigate_to_detail(transcript_id):
