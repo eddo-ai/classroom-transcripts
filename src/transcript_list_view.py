@@ -8,6 +8,7 @@ import logging
 from docx import Document
 from io import BytesIO
 import pydantic
+from assemblyai import types
 
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
@@ -275,9 +276,7 @@ def get_transcript_statuses():
         return {}
 
 
-def query_table_entities(
-    table_client, user_email: str, table_name: str
-):
+def query_table_entities(table_client, user_email: str, table_name: str):
     """
     Query table entities based on user permissions.
 
@@ -434,7 +433,15 @@ def display_transcript_item(item):
             st.error("Missing transcript ID")
             return
 
-        transcript = aai.Transcript.get_by_id(transcript_id)
+        try:
+            transcript = aai.Transcript.get_by_id(transcript_id)
+        except Exception as e:
+            # Handle any other errors including AssemblyAI API errors
+            st.error(f"Error loading transcript: {str(e)}")
+            logging.error(
+                f"Error loading transcript {transcript_id}: {str(e)}", exc_info=True
+            )
+
         # Get status info for formatting
         # Format upload time
         upload_time = item.get("uploadTime")
