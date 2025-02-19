@@ -227,7 +227,12 @@ def generate_transcript_docx(transcript):
 st.title("🔍 Audio Files & Transcriptions")
 
 # Initialize table client
-table_client = get_table_client(st.session_state.get("table_name", "Transcriptions"))
+table_client = get_table_client(st.session_state.get("table_name"))
+
+if DEBUG:
+    st.write(
+        f"Debug - Table name: {st.session_state.get('table_name', 'Transcriptions')}"
+    )
 
 
 def can_view_transcript(transcript_email: str, user_email: str) -> bool:
@@ -312,6 +317,9 @@ def query_table_entities(table_client, user_email: str):
 
     except Exception as e:
         logging.error(f"Error querying table: {e}")
+        if DEBUG:
+            st.error(f"Debug - Error querying table: {str(e)}")
+            st.write(f"Debug - Table client state: {table_client}")
         return []
 
 
@@ -468,13 +476,29 @@ def display_transcript_item(item):
 
         original_file_name = item.get("originalFileName", "Untitled")
         row_key = item.get("RowKey", "")
+        status = item.get("status")
 
-        with st.expander(f"📄 {original_file_name}", expanded=False):
+        # Choose icon based on status
+        status_icon = "📄"  # Default icon
+        if status in ["queued", "processing"]:
+            status_icon = "⏳"
+        elif status in ["error", "failed"]:
+            status_icon = "❌"
+
+        with st.expander(f"{status_icon} {original_file_name}", expanded=False):
             class_name = item.get("className", "")
             description = item.get("description", "")
             size = item.get("formatted_size", "")
             upload_time = item.get("uploadTime")
             upload_time_str = localized_timestamp(upload_time)
+
+            # Show status in the header of the content
+            if status in ["queued", "processing"]:
+                st.markdown(
+                    "**Status: Processing** - This typically takes 1-2 minutes."
+                )
+            elif status in ["error", "failed"]:
+                st.markdown("**Status: Error** - Please try uploading the file again.")
 
             st.write(f"**{class_name}**")
             st.write(description)
@@ -487,7 +511,7 @@ def display_transcript_item(item):
                 st.audio(audio_url_with_sas)
 
             # Transcript preview with improved markdown
-            if item.get("status") == "completed" and transcript_id:
+            if status == "completed" and transcript_id:
                 if DEBUG and transcript:
 
                     @st.dialog("Transcript data")
@@ -595,7 +619,7 @@ def display_transcript_item(item):
                                 key=f"download_transcript_docx_no_speakers_{row_key}",
                             )
 
-            elif item.get("status") in ["queued", "processing"]:
+            elif status in ["queued", "processing"]:
                 st.markdown("""
                 #### ⏳ Processing
                 The transcript is still being generated. This typically takes 1-2 minutes.
@@ -609,7 +633,7 @@ def display_transcript_item(item):
                     else:
                         st.info("Still processing... Check back in a minute.")
 
-            elif item.get("status") in ["error", "failed"]:
+            elif status in ["error", "failed"]:
                 st.markdown("""
                 #### ❌ Error
                 There was a problem processing this transcript. Please try uploading the file again.
