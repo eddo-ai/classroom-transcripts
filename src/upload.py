@@ -133,6 +133,7 @@ aai.settings.api_key = os.getenv("ASSEMBLYAI_API_KEY")
 # Configure AssemblyAI transcription settings
 transcription_config = aai.TranscriptionConfig(
     speaker_labels=True,  # Enable speaker diarization
+    speakers_expected=10,
     speech_model=aai.SpeechModel.best,  # Use best speech model
     iab_categories=True,  # Enable IAB categories
     auto_chapters=True,  # Enable auto chapters
