@@ -586,46 +586,6 @@ def display_transcript_item(item):
         )
 
 
-def display_status_overview(items_list):
-    """Display status overview in a fragment"""
-    # Only count items the user has permission to see
-
-    user = st.experimental_user
-
-    validated_email = user.email if user.email_verified else None
-
-    # Filter items based on validated email
-    viewable_items = (
-        items_list
-        if is_admin(str(validated_email))
-        else [
-            item
-            for item in items_list
-            if can_view_transcript(item.get("uploaderEmail", ""), str(validated_email))
-        ]
-    )
-
-    total_items = len(viewable_items)
-    completed_items = len([i for i in viewable_items if i.get("status") == "completed"])
-    processing_items = len(
-        [i for i in viewable_items if i.get("status") == "processing"]
-    )
-    error_items = len(
-        [i for i in viewable_items if i.get("status") in ["error", "failed"]]
-    )
-
-    st.subheader("📊 Overview")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Files", total_items)
-    with col2:
-        st.metric("Completed", completed_items)
-    with col3:
-        st.metric("Processing", processing_items)
-    with col4:
-        st.metric("Errors", error_items)
-
-
 def display_table_data():
     """Display the table data with progress indicators"""
     items_list = load_table_data(table_client)
@@ -646,11 +606,6 @@ def display_table_data():
             st.session_state.last_refresh = datetime.now(pytz.UTC)
             st.cache_data.clear()
             st.rerun()
-
-    # Display status overview with already filtered list
-    with st.container():
-        display_status_overview(items_list)
-        st.divider()
 
     # Filter controls
     st.subheader("🔍 Transcripts")
