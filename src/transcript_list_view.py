@@ -269,7 +269,6 @@ def get_transcript_statuses():
                 else:
                     status_map[t.id] = t.status.value
 
-
         return status_map
     except Exception as e:
         st.error(f"Error getting transcript statuses: {str(e)}")
@@ -415,6 +414,8 @@ def display_transcript_item(item):
         original_file_name = item.get("originalFileName", "Untitled")
         row_key = item.get("RowKey", "")
         status = item.get("status")
+        class_name = item.get("className", "")
+        uploader_email = item.get("uploaderEmail", "Unknown")
 
         # Choose icon based on status
         status_icon = "📄"  # Default icon
@@ -423,12 +424,27 @@ def display_transcript_item(item):
         elif status in ["error", "failed"]:
             status_icon = "❌"
 
-        with st.expander(f"{status_icon} {original_file_name}", expanded=False):
-            class_name = item.get("className", "")
+        # Format display name - use class name if available, otherwise use original file name
+        display_name = class_name if class_name else original_file_name
+
+        # Format uploader email - show only the part before @ symbol
+        uploader_display = (
+            uploader_email.split("@")[0] if "@" in uploader_email else uploader_email
+        )
+
+        # Format date to be more concise
+        date_display = (
+            upload_time.strftime("%Y-%m-%d")
+            if isinstance(upload_time, datetime)
+            else str(upload_time)
+        )
+
+        with st.expander(
+            f"{status_icon} {display_name} | by {uploader_display} | {date_display}",
+            expanded=False,
+        ):
             description = item.get("description", "")
             size = item.get("formatted_size", "")
-            upload_time = item.get("uploadTime")
-            upload_time_str = localized_timestamp(upload_time)
 
             # Show status in the header of the content
             if status in ["queued", "processing"]:
@@ -438,10 +454,16 @@ def display_transcript_item(item):
             elif status in ["error", "failed"]:
                 st.markdown("**Status: Error** - Please try uploading the file again.")
 
-            st.write(f"**{class_name}**")
-            st.write(description)
-            st.write(f"Uploaded {upload_time_str}")
-            st.write(f"Size: {size}")
+            if class_name:
+                st.write(f"**Class**: {class_name}")
+                st.write(f"**File**: {original_file_name}")
+            else:
+                st.write(f"**File**: {original_file_name}")
+
+            if description:
+                st.write(f"**Description**: {description}")
+            st.write(f"**Uploaded**: {upload_time_str}")
+            st.write(f"**Size**: {size}")
 
             # Audio player
             audio_url_with_sas = get_sas_url_for_audio_file_name(row_key)
