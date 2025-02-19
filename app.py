@@ -6,7 +6,7 @@ load_dotenv()
 
 # Configure debug settings
 DEBUG = bool(st.secrets.get("DEBUG", False))  # Force debug mode temporarily
-if DEBUG:
+if DEBUG is not False:
     logging.getLogger("watchdog").setLevel(logging.INFO)
     logging.basicConfig(level=logging.DEBUG)
     st.write("Debug mode enabled")
