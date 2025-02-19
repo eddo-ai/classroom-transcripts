@@ -14,7 +14,8 @@ from src.utils.table_client import get_table_client
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
 DEBUG = bool(st.session_state.get("DEBUG", False))
-
+table_name = st.secrets.get("AZURE_STORAGE_TABLE_NAME", "TranscriptionMappings")
+st.session_state["table_name"] = table_name
 
 def get_azure_credential():
     """Get Azure credential using service principal."""
@@ -251,8 +252,7 @@ async def store_mapping_in_table(
 ):
     """Store the mapping between uploaded file and its transcript."""
     try:
-        table_client = get_table_client(os.getenv("AZURE_STORAGE_TABLE_NAME", "Transcriptions"))
-
+        table_client = get_table_client(table_name)
         # Get user information
         user = st.experimental_user
 

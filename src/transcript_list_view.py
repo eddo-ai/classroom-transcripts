@@ -227,7 +227,7 @@ def generate_transcript_docx(transcript):
 st.title("🔍 Audio Files & Transcriptions")
 
 # Initialize table client
-table_client = get_table_client()
+table_client = get_table_client(st.session_state.get("table_name", "Transcriptions"))
 
 
 def can_view_transcript(transcript_email: str, user_email: str) -> bool:
@@ -302,7 +302,9 @@ def query_table_entities(table_client, user_email: str):
         else:
             if DEBUG:
                 st.info(f"Debug - User {user_email} is admin, fetching all items")
-            items = list_table_items(table_client)
+            items = list_table_items(
+                st.session_state.get("table_name", "Transcriptions")
+            )
 
         if DEBUG:
             st.info(f"Debug - Number of items fetched: {len(items) if items else 0}")
