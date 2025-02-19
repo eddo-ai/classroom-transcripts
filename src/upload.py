@@ -13,13 +13,7 @@ from urllib.parse import quote
 from src.utils.table_client import get_table_client
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
-if logging.getLogger().getEffectiveLevel() >= logging.DEBUG:
-    st.info("Debug mode is enabled.")
-    st.session_state["DEBUG"] = True
-    DEBUG = True
-else:
-    st.session_state["DEBUG"] = False
-    DEBUG = False
+DEBUG = bool(st.session_state.get("DEBUG", False))
 
 def get_azure_credential():
     """Get Azure credential using service principal."""
