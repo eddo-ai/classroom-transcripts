@@ -244,35 +244,36 @@ def can_view_transcript(transcript_email: str, user_email: str) -> bool:
 
 def get_transcript_statuses():
     """Get all transcript statuses in one API call"""
-    try:
-        # Create parameters to get all transcripts
-        params = aai.ListTranscriptParameters(
-            limit=100  # Adjust limit as needed
-        )
-        response = transcriber.list_transcripts(params)
+    # Check if we have cached statuses and they're not expired
 
-        # Create mapping of transcript ID to status
+    try:
         status_map = {}
-        for t in response.transcripts:
+        params = aai.ListTranscriptParameters(limit=100)  # Adjust limit as needed
+
+        # Get first page
+        page = transcriber.list_transcripts(params)
+        for t in page.transcripts:
             # Handle test data
             if t.id.startswith("test_"):
                 status_map[t.id] = "completed"
             else:
                 status_map[t.id] = t.status.value
 
-        # Get next page if available
-        while response.page_details.before_id_of_prev_url:
-            params.before_id = response.page_details.before_id_of_prev_url
-            response = transcriber.list_transcripts(params)
-            for t in response.transcripts:
+        # Paginate through all remaining pages
+        while page.page_details.before_id_of_prev_url is not None:
+            params.before_id = page.page_details.before_id_of_prev_url
+            page = transcriber.list_transcripts(params)
+            for t in page.transcripts:
                 if t.id.startswith("test_"):
                     status_map[t.id] = "completed"
                 else:
                     status_map[t.id] = t.status.value
 
+
         return status_map
     except Exception as e:
         st.error(f"Error getting transcript statuses: {str(e)}")
+        # Return cached data if available, even if expired
         return {}
 
 
@@ -303,7 +304,11 @@ def query_table_entities(table_client, user_email: str):
         else:
             if DEBUG:
                 st.info(f"Debug - User {user_email} is admin, fetching all items")
-            items = list_table_items(st.session_state.get("table_name", st.secrets.get("AZURE_STORAGE_TABLE_NAME")))
+            items = list_table_items(
+                st.session_state.get(
+                    "table_name", st.secrets.get("AZURE_STORAGE_TABLE_NAME")
+                )
+            )
 
         if DEBUG:
             st.info(f"Debug - Number of items fetched: {len(items) if items else 0}")
@@ -404,40 +409,9 @@ def display_transcript_item(item):
             st.error("Missing transcript ID")
             return
 
-        transcript = None
-        try:
-            # Get transcript using the static method
-            transcript = aai.Transcript.get_by_id(transcript_id)
-        except pydantic.ValidationError as ve:
-            # Handle validation errors gracefully
-            st.warning(
-                "Some transcript features may be limited due to API changes. Basic transcript text is still available."
-            )
-            logging.warning(
-                f"Validation error for transcript {transcript_id}: {str(ve)}"
-            )
-            # Try to get basic transcript data
-            try:
-                # Try to get transcript with minimal validation
-                transcript = aai.Transcript.get_by_id(transcript_id)
-                # Check if we at least have the text
-                if not hasattr(transcript, "text") or not transcript.text:
-                    transcript = None
-            except Exception as e:
-                logging.error(f"Error getting transcript data: {str(e)}")
-                transcript = None
-        except Exception as e:
-            # Handle any other errors including AssemblyAI API errors
-            st.error(f"Error loading transcript: {str(e)}")
-            logging.error(
-                f"Error loading transcript {transcript_id}: {str(e)}", exc_info=True
-            )
-
         # Get status info for formatting
-        # Format upload time
         upload_time = item.get("uploadTime")
         upload_time_str = localized_timestamp(upload_time)
-
         original_file_name = item.get("originalFileName", "Untitled")
         row_key = item.get("RowKey", "")
         status = item.get("status")
@@ -474,8 +448,32 @@ def display_transcript_item(item):
             if audio_url_with_sas:
                 st.audio(audio_url_with_sas)
 
-            # Transcript preview with improved markdown
+            # Only fetch full transcript details if status is completed and user expands the item
+            transcript = None
             if status == "completed" and transcript_id:
+                try:
+                    transcript = aai.Transcript.get_by_id(transcript_id)
+                except pydantic.ValidationError as ve:
+                    st.warning(
+                        "Some transcript features may be limited due to API changes. Basic transcript text is still available."
+                    )
+                    logging.warning(
+                        f"Validation error for transcript {transcript_id}: {str(ve)}"
+                    )
+                    try:
+                        transcript = aai.Transcript.get_by_id(transcript_id)
+                        if not hasattr(transcript, "text") or not transcript.text:
+                            transcript = None
+                    except Exception as e:
+                        logging.error(f"Error getting transcript data: {str(e)}")
+                        transcript = None
+                except Exception as e:
+                    st.error(f"Error loading transcript: {str(e)}")
+                    logging.error(
+                        f"Error loading transcript {transcript_id}: {str(e)}",
+                        exc_info=True,
+                    )
+
                 if DEBUG and transcript:
 
                     @st.dialog("Transcript data")
@@ -541,7 +539,6 @@ def display_transcript_item(item):
 
                     elif transcript.text:
                         st.info("AI failed to distinguish speakers.")
-                        # type: ignore
                         preview_text = str(transcript.text)[
                             :TRANSCRIPT_PREVIEW_MAX_LENGTH
                         ]
@@ -588,14 +585,6 @@ def display_transcript_item(item):
                 #### ⏳ Processing
                 The transcript is still being generated. This typically takes 1-2 minutes.
                 """)
-
-                # Add refresh button for pending transcripts
-                if st.button("🔄 Check Status", key=f"refresh_status_{row_key}"):
-                    current_status = get_transcript_status(transcript_id)
-                    if current_status != item.get("status"):
-                        st.rerun()  # Refresh the page if status has changed
-                    else:
-                        st.info("Still processing... Check back in a minute.")
 
             elif status in ["error", "failed"]:
                 st.markdown("""
