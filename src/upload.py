@@ -195,13 +195,12 @@ def upload_to_azure(file):
         return False
 
 
-async def submit_transcription(url: str) -> dict:
+async def submit_transcription(url: str, config: aai.TranscriptionConfig) -> dict:
     try:
         # Get the callback URL from environment
         callback_url = os.getenv("ASSEMBLYAI_CALLBACK_URL")
 
         # Configure transcription with webhook if available
-        config = transcription_config
         if callback_url:
             config = config.set_webhook(callback_url)
             logging.info(f"Using callback URL: {callback_url}")
@@ -418,7 +417,7 @@ if st.experimental_user.get("is_logged_in"):
                         )
                         st.success(f"Uploaded file to Azure: {markdown_link}")
 
-                        transcript = asyncio.run(submit_transcription(safe_url))
+                        transcript = asyncio.run(submit_transcription(safe_url, config))
                         if transcript["status"] == "queued":
                             # Store mapping in table
                             asyncio.run(
