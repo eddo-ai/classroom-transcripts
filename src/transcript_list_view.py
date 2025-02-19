@@ -10,15 +10,7 @@ from io import BytesIO
 
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
-if logging.getLogger().getEffectiveLevel() >= logging.DEBUG:
-    st.info("Debug mode is enabled.")
-    st.session_state["DEBUG"] = True
-    DEBUG = True
-else:
-    st.session_state["DEBUG"] = False
-    DEBUG = False
-
-
+DEBUG = bool(st.session_state.get("DEBUG", False))
 TRANSCRIPT_PREVIEW_MAX_LENGTH = 1000
 TRANSCRIPT_PREVIEW_SPEAKER_TURNS = 5
 

@@ -1,12 +1,11 @@
 import streamlit as st
 import os
 import logging
-from dotenv import load_dotenv
-load_dotenv()
 
 # Configure debug settings
-DEBUG = bool(st.secrets.get("DEBUG", False))  # Force debug mode temporarily
-if DEBUG is not False:
+DEBUG = bool(st.secrets.get("DEBUG", False))
+st.session_state["DEBUG"] = DEBUG
+if DEBUG:
     logging.getLogger("watchdog").setLevel(logging.INFO)
     logging.basicConfig(level=logging.DEBUG)
     st.write("Debug mode enabled")
