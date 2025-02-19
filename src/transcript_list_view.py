@@ -435,15 +435,26 @@ def display_transcript_item(item):
 
         transcript = None
         try:
+            # Get transcript using the static method
             transcript = aai.Transcript.get_by_id(transcript_id)
         except pydantic.ValidationError as ve:
             # Handle validation errors gracefully
             st.warning(
-                "Transcript data format has changed - some features may be limited"
+                "Some transcript features may be limited due to API changes. Basic transcript text is still available."
             )
             logging.warning(
                 f"Validation error for transcript {transcript_id}: {str(ve)}"
             )
+            # Try to get basic transcript data
+            try:
+                # Try to get transcript with minimal validation
+                transcript = aai.Transcript.get_by_id(transcript_id)
+                # Check if we at least have the text
+                if not hasattr(transcript, "text") or not transcript.text:
+                    transcript = None
+            except Exception as e:
+                logging.error(f"Error getting transcript data: {str(e)}")
+                transcript = None
         except Exception as e:
             # Handle any other errors including AssemblyAI API errors
             st.error(f"Error loading transcript: {str(e)}")
