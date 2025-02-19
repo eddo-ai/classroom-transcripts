@@ -149,24 +149,27 @@ def generate_transcript_markdown(transcript, max_length=None, max_speaker_turns=
         for i, utterance in enumerate(transcript.utterances):
             # Break if we've hit the max speaker turns
             if max_speaker_turns and i >= max_speaker_turns:
-                markdown_lines.append(
-                    "\n*[Additional transcript content truncated...]*"
-                )
+                markdown_lines.append("\n*[Additional transcript content truncated...]*")
                 break
 
-            speaker_text = f"**Speaker {utterance.speaker}**: {utterance.text}"
+            # Format timestamp as [00:00:00]
+            start_seconds = utterance.start / 1000.0  # Convert milliseconds to seconds
+            hours = int(start_seconds // 3600)
+            minutes = int((start_seconds % 3600) // 60)
+            seconds = int(start_seconds % 60)
+            timestamp = f"[{hours:02d}:{minutes:02d}:{seconds:02d}]"
+            
+            # Format as [timestamp] **Speaker X**: text
+            speaker_letter = chr(65 + (utterance.speaker - 1)) if isinstance(utterance.speaker, int) else utterance.speaker
+            speaker_text = f"{timestamp} **Speaker {speaker_letter}**: {utterance.text}"
             markdown_lines.append(speaker_text)
 
             # Check total length if max_length specified
             current_text = "\n".join(markdown_lines)
             if max_length and len(current_text) >= max_length:
-                truncate_length = max_length - len(
-                    "\n\n*[Additional transcript content truncated...]*"
-                )
+                truncate_length = max_length - len("\n\n*[Additional transcript content truncated...]*")
                 markdown_lines[-1] = str(markdown_lines[-1])[:truncate_length]
-                markdown_lines.append(
-                    "\n*[Additional transcript content truncated...]*"
-                )
+                markdown_lines.append("\n*[Additional transcript content truncated...]*")
                 break
 
     # Handle transcripts without speaker detection
@@ -174,9 +177,7 @@ def generate_transcript_markdown(transcript, max_length=None, max_speaker_turns=
         text = transcript.text
         if max_length:
             truncate_length = max_length
-            text = str(text)[:truncate_length] + (
-                "..." if len(transcript.text) > truncate_length else ""
-            )
+            text = str(text)[:truncate_length] + ("..." if len(transcript.text) > truncate_length else "")
         markdown_lines.append(text)
 
     return "\n\n".join(markdown_lines)
@@ -390,16 +391,6 @@ def load_table_data(_table_client):
     return items_list
 
 
-def navigate_to_detail(transcript_id):
-    """Navigate to the detail view for a transcript"""
-    st.session_state.selected_transcript = {
-        "id": transcript_id,
-        "audio_url_with_sas": get_sas_url_for_audio_file_name(transcript_id),
-    }
-    st.query_params["id"] = transcript_id  # Use new API to set params
-    st.switch_page("src/transcript_detail_view.py")
-
-
 def display_transcript_item(item):
     """Display a single transcript item in a fragment"""
     try:
@@ -497,27 +488,10 @@ def display_transcript_item(item):
                     )
 
                 if DEBUG and transcript:
-
-                    @st.dialog("Transcript data")
-                    def show_transcript_data(transcript):
-                        st.write(transcript.json_response)
-
-                    if st.button(
-                        "Show transcript data",
-                        key=f"show_transcript_data_{row_key}",
-                    ):
-                        show_transcript_data(transcript)
-
-                # Only try to access transcript properties if we have a valid transcript object
-                if (
-                    transcript
-                    and hasattr(transcript, "text")
-                    and hasattr(transcript, "utterances")
-                ):
                     # Good transcriptions have text and utterances
                     if transcript.text and transcript.utterances:
-                        # Add download buttons and view full transcript in a row
-                        col1, col2, col3 = st.columns([1, 1, 1])
+                        # Add download buttons in a row
+                        col1, col2 = st.columns([1, 1])
 
                         with col1:
                             # Create download button for markdown
@@ -541,47 +515,18 @@ def display_transcript_item(item):
                                 key=f"download_transcript_docx_{row_key}",
                             )
 
-                        with col3:
-                            # Placeholder for future functionality
-                            pass
-
-                        ### Show preview and full transcript dialog
-                        st.markdown("#### 📝 Transcript Preview")
-                        preview_markdown = generate_transcript_markdown(
-                            transcript,
-                            max_speaker_turns=TRANSCRIPT_PREVIEW_SPEAKER_TURNS,
-                        )
-                        st.markdown(preview_markdown)
-
-                        # Define dialog first
-                        @st.dialog("Full Transcript")
-                        def show_full_transcript(transcript):
-                            full_markdown = generate_transcript_markdown(transcript)
-                            st.markdown(full_markdown)
+                        ### Show transcript
+                        st.markdown("#### 📝 Transcript")
+                        full_markdown = generate_transcript_markdown(transcript)
+                        st.markdown(full_markdown)
 
                     elif transcript.text:
                         st.info("AI failed to distinguish speakers.")
-                        preview_text = str(transcript.text)[
-                            :TRANSCRIPT_PREVIEW_MAX_LENGTH
-                        ]
-                        st.write(preview_text)
 
-                        # Define dialog first
-                        @st.dialog("Full Transcript")
-                        def show_full_transcript_no_speakers(transcript):
-                            st.write(transcript.text)
-
-                        # Add download buttons and view full transcript in a row
-                        col1, col2, col3 = st.columns([1, 1, 1])
+                        # Add download buttons in a row
+                        col1, col2 = st.columns([1, 1])
 
                         with col1:
-                            if st.button(
-                                "View Full Transcript",
-                                key=f"view_transcript_no_speakers_{row_key}",
-                            ):
-                                show_full_transcript_no_speakers(transcript)
-
-                        with col2:
                             # Create download button for text
                             st.download_button(
                                 label="Download as Text",
@@ -591,7 +536,7 @@ def display_transcript_item(item):
                                 key=f"download_transcript_txt_{row_key}",
                             )
 
-                        with col3:
+                        with col2:
                             # Create download button for docx
                             docx_bytes = generate_transcript_docx(transcript)
                             st.download_button(
@@ -601,6 +546,10 @@ def display_transcript_item(item):
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                 key=f"download_transcript_docx_no_speakers_{row_key}",
                             )
+
+                        # Show full transcript
+                        st.markdown("#### 📝 Transcript")
+                        st.write(transcript.text)
 
             elif status in ["queued", "processing"]:
                 st.markdown("""

@@ -1,14 +1,12 @@
-from shlex import quote
 import streamlit as st
 import assemblyai as aai
 import os
 import logging
 from azure.identity import ClientSecretCredential, DefaultAzureCredential
-from azure.storage.blob import BlobServiceClient, BlobSasPermissions
-from azure.data.tables import TableServiceClient, TableEntity
-from datetime import datetime, timedelta
+from azure.storage.blob import BlobServiceClient
+from datetime import datetime
 import asyncio
-from src.utils.transcript_mapping import create_upload_entity, update_transcript_status
+from src.utils.transcript_mapping import create_upload_entity
 from urllib.parse import quote
 from src.utils.table_client import get_table_client
 from utils.azure_storage import get_sas_url_for_audio_file_name
@@ -164,7 +162,7 @@ def upload_to_azure(file):
         # Upload as block blob
         file.seek(0)
         try:
-            blob = blob_client.upload_blob(
+            blob_client.upload_blob(
                 file,
                 overwrite=False,  # No need for overwrite with unique names
             )
