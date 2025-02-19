@@ -491,69 +491,36 @@ def display_transcript_item(item):
                         exc_info=True,
                     )
 
-                if DEBUG and transcript:
-                    # Good transcriptions have text and utterances
-                    if transcript.text and transcript.utterances:
-                        # Add download buttons in a row
-                        col1, col2 = st.columns([1, 1])
+                if transcript:
+                    # Add download buttons in a row
+                    col1, col2 = st.columns([1, 1])
 
-                        with col1:
-                            # Create download button for markdown
-                            full_markdown = generate_transcript_markdown(transcript)
-                            st.download_button(
-                                label="Download as Markdown",
-                                data=full_markdown,
-                                file_name=f"{original_file_name}.md",
-                                mime="text/markdown",
-                                key=f"download_transcript_md_{row_key}",
-                            )
-
-                        with col2:
-                            # Create download button for docx
-                            docx_bytes = generate_transcript_docx(transcript)
-                            st.download_button(
-                                label="Download as Word",
-                                data=docx_bytes,
-                                file_name=f"{original_file_name}.docx",
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                key=f"download_transcript_docx_{row_key}",
-                            )
-
-                        ### Show transcript
-                        st.markdown("#### 📝 Transcript")
+                    with col1:
+                        # Create download button for markdown
                         full_markdown = generate_transcript_markdown(transcript)
-                        st.markdown(full_markdown)
+                        st.download_button(
+                            label="Download as Markdown",
+                            data=full_markdown,
+                            file_name=f"{original_file_name}.md",
+                            mime="text/markdown",
+                            key=f"download_transcript_md_{row_key}",
+                        )
 
-                    elif transcript.text:
-                        st.info("AI failed to distinguish speakers.")
+                    with col2:
+                        # Create download button for docx
+                        docx_bytes = generate_transcript_docx(transcript)
+                        st.download_button(
+                            label="Download as Word",
+                            data=docx_bytes,
+                            file_name=f"{original_file_name}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key=f"download_transcript_docx_{row_key}",
+                        )
 
-                        # Add download buttons in a row
-                        col1, col2 = st.columns([1, 1])
-
-                        with col1:
-                            # Create download button for text
-                            st.download_button(
-                                label="Download as Text",
-                                data=transcript.text,
-                                file_name=f"{original_file_name}.txt",
-                                mime="text/plain",
-                                key=f"download_transcript_txt_{row_key}",
-                            )
-
-                        with col2:
-                            # Create download button for docx
-                            docx_bytes = generate_transcript_docx(transcript)
-                            st.download_button(
-                                label="Download as Word",
-                                data=docx_bytes,
-                                file_name=f"{original_file_name}.docx",
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                key=f"download_transcript_docx_no_speakers_{row_key}",
-                            )
-
-                        # Show full transcript
-                        st.markdown("#### 📝 Transcript")
-                        st.write(transcript.text)
+                    ### Show transcript
+                    st.markdown("#### 📝 Transcript")
+                    full_markdown = generate_transcript_markdown(transcript)
+                    st.markdown(full_markdown)
 
             elif status in ["queued", "processing"]:
                 with st.container(border=True):
