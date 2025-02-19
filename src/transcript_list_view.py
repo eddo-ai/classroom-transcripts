@@ -607,8 +607,6 @@ def display_table_data():
             st.cache_data.clear()
             st.rerun()
 
-    # Filter controls
-    st.subheader("🔍 Transcripts")
     col1, col2 = st.columns([2, 1])
     with col1:
         status_filter = st.multiselect(
