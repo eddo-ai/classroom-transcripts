@@ -433,8 +433,17 @@ def display_transcript_item(item):
             st.error("Missing transcript ID")
             return
 
+        transcript = None
         try:
             transcript = aai.Transcript.get_by_id(transcript_id)
+        except pydantic.ValidationError as ve:
+            # Handle validation errors gracefully
+            st.warning(
+                "Transcript data format has changed - some features may be limited"
+            )
+            logging.warning(
+                f"Validation error for transcript {transcript_id}: {str(ve)}"
+            )
         except Exception as e:
             # Handle any other errors including AssemblyAI API errors
             st.error(f"Error loading transcript: {str(e)}")
@@ -469,7 +478,7 @@ def display_transcript_item(item):
 
             # Transcript preview with improved markdown
             if item.get("status") == "completed" and transcript_id:
-                if DEBUG:
+                if DEBUG and transcript:
 
                     @st.dialog("Transcript data")
                     def show_transcript_data(transcript):
@@ -481,91 +490,100 @@ def display_transcript_item(item):
                     ):
                         show_transcript_data(transcript)
 
-                # Good transcriptions have text and utterances
-                if transcript.text and transcript.utterances:
-                    # Add download buttons and view full transcript in a row
-                    col1, col2, col3 = st.columns([1, 1, 1])
+                # Only try to access transcript properties if we have a valid transcript object
+                if (
+                    transcript
+                    and hasattr(transcript, "text")
+                    and hasattr(transcript, "utterances")
+                ):
+                    # Good transcriptions have text and utterances
+                    if transcript.text and transcript.utterances:
+                        # Add download buttons and view full transcript in a row
+                        col1, col2, col3 = st.columns([1, 1, 1])
 
-                    with col1:
-                        # Create download button for markdown
-                        full_markdown = generate_transcript_markdown(transcript)
-                        st.download_button(
-                            label="Download as Markdown",
-                            data=full_markdown,
-                            file_name=f"{original_file_name}.md",
-                            mime="text/markdown",
-                            key=f"download_transcript_md_{row_key}",
+                        with col1:
+                            # Create download button for markdown
+                            full_markdown = generate_transcript_markdown(transcript)
+                            st.download_button(
+                                label="Download as Markdown",
+                                data=full_markdown,
+                                file_name=f"{original_file_name}.md",
+                                mime="text/markdown",
+                                key=f"download_transcript_md_{row_key}",
+                            )
+
+                        with col2:
+                            # Create download button for docx
+                            docx_bytes = generate_transcript_docx(transcript)
+                            st.download_button(
+                                label="Download as Word",
+                                data=docx_bytes,
+                                file_name=f"{original_file_name}.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                key=f"download_transcript_docx_{row_key}",
+                            )
+
+                        with col3:
+                            # Placeholder for future functionality
+                            pass
+
+                        ### Show preview and full transcript dialog
+                        st.markdown("#### 📝 Transcript Preview")
+                        preview_markdown = generate_transcript_markdown(
+                            transcript,
+                            max_speaker_turns=TRANSCRIPT_PREVIEW_SPEAKER_TURNS,
                         )
+                        st.markdown(preview_markdown)
 
-                    with col2:
-                        # Create download button for docx
-                        docx_bytes = generate_transcript_docx(transcript)
-                        st.download_button(
-                            label="Download as Word",
-                            data=docx_bytes,
-                            file_name=f"{original_file_name}.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            key=f"download_transcript_docx_{row_key}",
-                        )
+                        # Define dialog first
+                        @st.dialog("Full Transcript")
+                        def show_full_transcript(transcript):
+                            full_markdown = generate_transcript_markdown(transcript)
+                            st.markdown(full_markdown)
 
-                    with col3:
-                        # Placeholder for future functionality
-                        pass
+                    elif transcript.text:
+                        st.info("AI failed to distinguish speakers.")
+                        # type: ignore
+                        preview_text = str(transcript.text)[
+                            :TRANSCRIPT_PREVIEW_MAX_LENGTH
+                        ]
+                        st.write(preview_text)
 
-                    ### Show preview and full transcript dialog
-                    st.markdown("#### 📝 Transcript Preview")
-                    preview_markdown = generate_transcript_markdown(
-                        transcript, max_speaker_turns=TRANSCRIPT_PREVIEW_SPEAKER_TURNS
-                    )
-                    st.markdown(preview_markdown)
+                        # Define dialog first
+                        @st.dialog("Full Transcript")
+                        def show_full_transcript_no_speakers(transcript):
+                            st.write(transcript.text)
 
-                    # Define dialog first
-                    @st.dialog("Full Transcript")
-                    def show_full_transcript(transcript):
-                        full_markdown = generate_transcript_markdown(transcript)
-                        st.markdown(full_markdown)
+                        # Add download buttons and view full transcript in a row
+                        col1, col2, col3 = st.columns([1, 1, 1])
 
-                elif transcript.text:
-                    st.info("AI failed to distinguish speakers.")
-                    # type: ignore
-                    preview_text = str(transcript.text)[:TRANSCRIPT_PREVIEW_MAX_LENGTH]
-                    st.write(preview_text)
+                        with col1:
+                            if st.button(
+                                "View Full Transcript",
+                                key=f"view_transcript_no_speakers_{row_key}",
+                            ):
+                                show_full_transcript_no_speakers(transcript)
 
-                    # Define dialog first
-                    @st.dialog("Full Transcript")
-                    def show_full_transcript_no_speakers(transcript):
-                        st.write(transcript.text)
+                        with col2:
+                            # Create download button for text
+                            st.download_button(
+                                label="Download as Text",
+                                data=transcript.text,
+                                file_name=f"{original_file_name}.txt",
+                                mime="text/plain",
+                                key=f"download_transcript_txt_{row_key}",
+                            )
 
-                    # Add download buttons and view full transcript in a row
-                    col1, col2, col3 = st.columns([1, 1, 1])
-
-                    with col1:
-                        if st.button(
-                            "View Full Transcript",
-                            key=f"view_transcript_no_speakers_{row_key}",
-                        ):
-                            show_full_transcript_no_speakers(transcript)
-
-                    with col2:
-                        # Create download button for text
-                        st.download_button(
-                            label="Download as Text",
-                            data=transcript.text,
-                            file_name=f"{original_file_name}.txt",
-                            mime="text/plain",
-                            key=f"download_transcript_txt_{row_key}",
-                        )
-
-                    with col3:
-                        # Create download button for docx
-                        docx_bytes = generate_transcript_docx(transcript)
-                        st.download_button(
-                            label="Download as Word",
-                            data=docx_bytes,
-                            file_name=f"{original_file_name}.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            key=f"download_transcript_docx_no_speakers_{row_key}",
-                        )
+                        with col3:
+                            # Create download button for docx
+                            docx_bytes = generate_transcript_docx(transcript)
+                            st.download_button(
+                                label="Download as Word",
+                                data=docx_bytes,
+                                file_name=f"{original_file_name}.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                key=f"download_transcript_docx_no_speakers_{row_key}",
+                            )
 
             elif item.get("status") == "processing":
                 st.markdown("""
