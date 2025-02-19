@@ -1,18 +1,18 @@
 """Utility script to view Azure Table Storage contents."""
+
 from azure.data.tables import TableServiceClient
 from azure.identity import DefaultAzureCredential
-import os
-from dotenv import load_dotenv
+import streamlit as st
+
+account_name = st.secrets.get("AZURE_STORAGE_ACCOUNT_NAME")
+connection_string = st.secrets.get("AZURE_STORAGE_CONNECTION_STRING")
+table_name = st.secrets.get("AZURE_STORAGE_TABLE_NAME", "TranscriptionMappings")
 
 
 def get_table_client():
     """Get a table client for the TranscriptMappings table."""
-    load_dotenv()
 
     # Get storage account name and connection string from environment
-    account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
-    connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-
     if not account_name:
         raise ValueError("AZURE_STORAGE_ACCOUNT environment variable is required")
 
@@ -25,13 +25,13 @@ def get_table_client():
             credential = DefaultAzureCredential()
             table_service = TableServiceClient(
                 endpoint=f"https://{account_name}.table.core.windows.net",
-                credential=credential
+                credential=credential,
             )
-        
+
         # Get the table client
-        table_client = table_service.get_table_client("TranscriptMappings")
+        table_client = table_service.get_table_client(table_name)
         return table_client
-        
+
     except Exception as e:
         raise Exception(f"Failed to get table client: {str(e)}")
 

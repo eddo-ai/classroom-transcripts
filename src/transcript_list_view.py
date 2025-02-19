@@ -8,7 +8,6 @@ import logging
 from docx import Document
 from io import BytesIO
 import pydantic
-from assemblyai import types
 
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
@@ -276,14 +275,13 @@ def get_transcript_statuses():
         return {}
 
 
-def query_table_entities(table_client, user_email: str, table_name: str):
+def query_table_entities(table_client, user_email: str):
     """
     Query table entities based on user permissions.
 
     Args:
         table_client: Azure TableClient instance
         user_email: Email of the current user
-        table_name: Name of the table to query
 
     Returns:
         List of entities the user has permission to view
@@ -311,7 +309,7 @@ def query_table_entities(table_client, user_email: str, table_name: str):
         return items
 
     except Exception as e:
-        logging.error(f"Error querying table {table_name}: {e}")
+        logging.error(f"Error querying table: {e}")
         return []
 
 
@@ -324,9 +322,8 @@ def load_table_data(_table_client):
     validated_email = user.email if user.email_verified else None
 
     if validated_email is not None:
-        table_name = os.getenv("AZURE_STORAGE_TABLE_NAME", "TranscriptionMappings")
         # Use consolidated query function
-        items = query_table_entities(_table_client, str(validated_email), table_name)
+        items = query_table_entities(_table_client, str(validated_email))
 
     if not items:
         return []
