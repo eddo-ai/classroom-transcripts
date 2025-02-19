@@ -6,7 +6,7 @@ import streamlit as st
 
 account_name = st.secrets.get("AZURE_STORAGE_ACCOUNT_NAME")
 connection_string = st.secrets.get("AZURE_STORAGE_CONNECTION_STRING")
-table_name = st.secrets.get("AZURE_STORAGE_TABLE_NAME", "TranscriptionMappings")
+table_name = st.secrets.get("AZURE_STORAGE_TABLE_NAME", "Transcriptions")
 
 
 def get_table_client():

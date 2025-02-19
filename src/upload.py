@@ -251,7 +251,7 @@ async def store_mapping_in_table(
 ):
     """Store the mapping between uploaded file and its transcript."""
     try:
-        table_client = get_table_client(os.getenv("AZURE_STORAGE_TABLE_NAME"))
+        table_client = get_table_client(os.getenv("AZURE_STORAGE_TABLE_NAME", "Transcriptions"))
 
         # Get user information
         user = st.experimental_user
