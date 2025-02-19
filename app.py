@@ -5,9 +5,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configure debug settings
-DEBUG = bool(os.getenv("DEBUG", False))  # Force debug mode temporarily
+DEBUG = bool(st.secrets.get("DEBUG", False))  # Force debug mode temporarily
 if DEBUG:
-    logging.getLogger("watchdog").setLevel(logging.WARNING)
+    logging.getLogger("watchdog").setLevel(logging.INFO)
     logging.basicConfig(level=logging.DEBUG)
     st.write("Debug mode enabled")
 
@@ -32,14 +32,7 @@ list_page = st.Page(
 pages_list = [upload_page]
 
 if st.experimental_user.get("is_logged_in"):
-    user = st.experimental_user
-    profile_page = st.Page(
-        "src/user_profile.py",
-        title=str(user.get("name", "")),
-        icon="👤",
-        url_path="/profile",
-    )
-    # pages_list.append(profile_page)
+    user = st.experimental_user    # pages_list.append(profile_page)
     pages_list.append(list_page)
     with st.sidebar:
         cols = st.columns([1, 3])
@@ -52,6 +45,8 @@ if st.experimental_user.get("is_logged_in"):
             st.write(email_display)
         if st.button("Logout"):
             st.logout()
+        if DEBUG:
+            st.write(user)
 
 pages = st.navigation(pages_list)
 pages.run()
