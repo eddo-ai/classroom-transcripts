@@ -595,11 +595,20 @@ def display_transcript_item(item):
                                 key=f"download_transcript_docx_no_speakers_{row_key}",
                             )
 
-            elif item.get("status") == "processing":
+            elif item.get("status") in ["queued", "processing"]:
                 st.markdown("""
                 #### ⏳ Processing
                 The transcript is still being generated. This typically takes 1-2 minutes.
                 """)
+
+                # Add refresh button for pending transcripts
+                if st.button("🔄 Check Status", key=f"refresh_status_{row_key}"):
+                    current_status = get_transcript_status(transcript_id)
+                    if current_status != item.get("status"):
+                        st.rerun()  # Refresh the page if status has changed
+                    else:
+                        st.info("Still processing... Check back in a minute.")
+
             elif item.get("status") in ["error", "failed"]:
                 st.markdown("""
                 #### ❌ Error
@@ -629,52 +638,16 @@ def display_table_data():
         st.info("No files found in the system")
         return
 
-    # Sort by timestamp
+    # Sort by timestamp (newest first)
     items_list.sort(key=lambda x: x.get("_timestamp", datetime.min), reverse=True)
 
-    # Auto-refresh logic
-    if st.session_state.auto_refresh and should_auto_refresh(items_list):
-        time_since_refresh = (
-            datetime.now(pytz.UTC) - st.session_state.last_refresh
-        ).total_seconds()
-        if time_since_refresh >= 30:
-            st.session_state.last_refresh = datetime.now(pytz.UTC)
-            st.cache_data.clear()
-            st.rerun()
-
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        status_filter = st.multiselect(
-            "Filter by Status",
-            options=st.session_state.transcription_statuses,
-            default=["completed"],
-            help="Select one or more statuses to filter",
-            on_change=reset_pagination,  # Reset pagination when filter changes
-        )
-    with col2:
-        sort_order = st.selectbox(
-            "Sort by",
-            options=["Newest First", "Oldest First"],
-            index=0,
-            on_change=reset_pagination,  # Reset pagination when sort changes
-        )
-
-    # Apply filters
-    filtered_items = [
-        item for item in items_list if item.get("status") in status_filter
-    ]
-
-    # Apply sorting
-    if sort_order == "Oldest First":
-        filtered_items.reverse()
-
     # Calculate pagination
-    total_items = len(filtered_items)
+    total_items = len(items_list)
     start_idx = 0
     end_idx = st.session_state.items_per_page
 
     # Display items in fragments
-    for item in filtered_items[start_idx:end_idx]:
+    for item in items_list[start_idx:end_idx]:
         with st.container():
             display_transcript_item(item)
 
