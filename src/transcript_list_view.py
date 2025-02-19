@@ -11,7 +11,7 @@ import pydantic
 
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
-DEBUG = bool(st.session_state.get("DEBUG", False))
+DEBUG = bool(st.secrets.get("DEBUG", False))
 TRANSCRIPT_PREVIEW_MAX_LENGTH = 1000
 TRANSCRIPT_PREVIEW_SPEAKER_TURNS = 5
 

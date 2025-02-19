@@ -13,7 +13,7 @@ from urllib.parse import quote
 from src.utils.table_client import get_table_client
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
-DEBUG = bool(st.session_state.get("DEBUG", False))
+DEBUG = bool(st.secrets.get("DEBUG", False))
 table_name = st.secrets.get("AZURE_STORAGE_TABLE_NAME", "TranscriptionMappings")
 st.session_state["table_name"] = table_name
 

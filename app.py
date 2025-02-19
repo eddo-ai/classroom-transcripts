@@ -4,7 +4,6 @@ import logging
 
 # Configure debug settings
 DEBUG = bool(st.secrets.get("DEBUG", False))
-st.session_state["DEBUG"] = DEBUG
 if DEBUG:
     logging.getLogger("watchdog").setLevel(logging.INFO)
     logging.basicConfig(level=logging.DEBUG)
