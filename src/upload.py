@@ -17,6 +17,7 @@ DEBUG = bool(st.secrets.get("DEBUG", False))
 table_name = st.secrets.get("AZURE_STORAGE_TABLE_NAME", "TranscriptionMappings")
 st.session_state["table_name"] = table_name
 
+
 def get_azure_credential():
     """Get Azure credential using service principal."""
     try:
@@ -129,37 +130,6 @@ logging.debug("Azure Identity: Using service principal authentication")
 
 # Initialize AssemblyAI
 aai.settings.api_key = os.getenv("ASSEMBLYAI_API_KEY")
-
-# Configure AssemblyAI transcription settings
-transcription_config = aai.TranscriptionConfig(
-    speaker_labels=True,  # Enable speaker diarization
-    speakers_expected=10,
-    speech_model=aai.SpeechModel.best,  # Use best speech model
-    iab_categories=True,  # Enable IAB categories
-    auto_chapters=True,  # Enable auto chapters
-    content_safety=True,  # Enable content safety
-    auto_highlights=False,  # Disable auto highlights due to API schema changes
-    sentiment_analysis=True,  # Enable sentiment analysis
-    filter_profanity=True,  # Filter profanity
-    language_detection=False,  # Disable language detection
-    language_code="en",  # Set language to English
-).set_redact_pii(
-    policies=[  # Redact PII
-        # Occupation was not redacted because it's a common topic in the classroom
-        aai.PIIRedactionPolicy.medical_condition,
-        aai.PIIRedactionPolicy.email_address,
-        aai.PIIRedactionPolicy.phone_number,
-        aai.PIIRedactionPolicy.banking_information,
-        aai.PIIRedactionPolicy.credit_card_number,
-        aai.PIIRedactionPolicy.credit_card_cvv,
-        aai.PIIRedactionPolicy.date_of_birth,
-        aai.PIIRedactionPolicy.person_name,
-        aai.PIIRedactionPolicy.organization,
-        aai.PIIRedactionPolicy.location,
-    ],
-    redact_audio=True,
-    substitution=aai.PIISubstitutionPolicy.hash,
-)
 
 
 st.title("🎤 Classroom Transcripts")
@@ -388,6 +358,13 @@ if st.experimental_user.get("is_logged_in"):
         with st.form("upload_details"):
             st.write("### Add Details")
             class_name = st.text_input("Class Name", value=default_class_name)
+            speaker_count = st.slider(
+                "Expected Number of Speakers",
+                min_value=1,
+                max_value=10,
+                value=3,
+                help="Estimate how many different speakers are in this recording",
+            )
             description = st.text_area(
                 "Description (optional)",
                 value="",
@@ -403,6 +380,36 @@ if st.experimental_user.get("is_logged_in"):
                     if upload_result := upload_to_azure(uploaded_file):
                         blob_sas_url = get_sas_url_for_audio_file_name(
                             upload_result["name"]
+                        )
+
+                        # Create new config with selected speaker count
+                        config = aai.TranscriptionConfig(
+                            speaker_labels=True,
+                            speakers_expected=speaker_count,
+                            speech_model=aai.SpeechModel.best,
+                            iab_categories=True,
+                            auto_chapters=True,
+                            content_safety=True,
+                            auto_highlights=False,
+                            sentiment_analysis=True,
+                            filter_profanity=True,
+                            language_detection=False,
+                            language_code="en",
+                        ).set_redact_pii(
+                            policies=[
+                                aai.PIIRedactionPolicy.medical_condition,
+                                aai.PIIRedactionPolicy.email_address,
+                                aai.PIIRedactionPolicy.phone_number,
+                                aai.PIIRedactionPolicy.banking_information,
+                                aai.PIIRedactionPolicy.credit_card_number,
+                                aai.PIIRedactionPolicy.credit_card_cvv,
+                                aai.PIIRedactionPolicy.date_of_birth,
+                                aai.PIIRedactionPolicy.person_name,
+                                aai.PIIRedactionPolicy.organization,
+                                aai.PIIRedactionPolicy.location,
+                            ],
+                            redact_audio=True,
+                            substitution=aai.PIISubstitutionPolicy.hash,
                         )
 
                         safe_url = quote(blob_sas_url, safe=":/?&=%")
