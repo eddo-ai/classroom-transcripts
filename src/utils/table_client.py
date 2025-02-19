@@ -10,6 +10,7 @@ def get_table_client(table_name: str):
     """Get a cached table client for Azure Table Storage.
 
     Supports both connection string (for local development) and managed identity authentication.
+    Creates the table if it doesn't exist.
     """
     account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
     connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
@@ -28,6 +29,16 @@ def get_table_client(table_name: str):
                 endpoint=f"https://{account_name}.table.core.windows.net",
                 credential=credential,
             )
+
+        # Create table if it doesn't exist
+        try:
+            table_service.create_table(table_name)
+            logging.info(f"Created table: {table_name}")
+        except Exception as e:
+            if "TableAlreadyExists" not in str(e):
+                logging.error(f"Error creating table: {str(e)}")
+                raise
+            logging.debug(f"Table {table_name} already exists")
 
         return table_service.get_table_client(table_name)
 
