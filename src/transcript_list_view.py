@@ -7,6 +7,12 @@ import os
 import logging
 from docx import Document
 from io import BytesIO
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import pickle
 
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
@@ -73,12 +79,11 @@ if "current_page" not in st.session_state:
 
 # Get admin emails from Streamlit secrets
 ADMIN_EMAILS = [
-    email.strip().lower()
-    for email in st.secrets.get("admin_emails", "").split(",")
+    email.strip().lower() for email in st.secrets.get("admin_emails", "").split(",")
 ]
 
 # Debug logging for admin list
-if bool(st.session_state.get("DEBUG", False)):
+if DEBUG:
     st.write("Debug - Admin emails:", ADMIN_EMAILS)
 
 
@@ -295,16 +300,19 @@ def query_table_entities(
     try:
         # For regular users, only fetch their items
         if not is_admin(user_email):
-            st.write(
-                f"Debug - User {user_email} is not admin, fetching only their items"
-            )
+            if DEBUG:
+                st.info(
+                    f"Debug - User {user_email} is not admin, fetching only their items"
+                )
             filter_condition = f"uploaderEmail eq '{user_email.lower()}'"
             items = list(table_client.query_entities(filter_condition))
         else:
-            st.write(f"Debug - User {user_email} is admin, fetching all items")
+            if DEBUG:
+                st.info(f"Debug - User {user_email} is admin, fetching all items")
             items = list_table_items(table_client)
 
-        st.write(f"Debug - Number of items fetched: {len(items) if items else 0}")
+        if DEBUG:
+            st.info(f"Debug - Number of items fetched: {len(items) if items else 0}")
         return items
 
     except Exception as e:
@@ -322,9 +330,7 @@ def load_table_data(_table_client):
 
     if validated_email is not None:
         table_name = (
-            "debug_transcriptions"
-            if bool(st.session_state.get("DEBUG", False))
-            else "Transcriptions"
+            "debug_transcriptions" if DEBUG else "Transcriptions"
         )
         # Use consolidated query function
         items = query_table_entities(_table_client, str(validated_email), table_name)
@@ -734,15 +740,61 @@ def get_google_drive_service():
     return build("drive", "v3", credentials=creds)
 
 
+def select_google_drive_folder():
+    """
+    Let user select a Google Drive folder for transcript uploads.
+    Returns the folder ID if selected, None otherwise.
+    """
+    try:
+        service = get_google_drive_service()
+
+        # Query for folders
+        results = (
+            service.files()
+            .list(
+                q="mimeType='application/vnd.google-apps.folder' and trashed=false",
+                spaces="drive",
+                fields="files(id, name)",
+                pageSize=100,
+            )
+            .execute()
+        )
+
+        folders = results.get("files", [])
+
+        if not folders:
+            st.warning("No folders found in your Google Drive.")
+            return None
+
+        # Create folder selection
+        folder_names = {f["name"]: f["id"] for f in folders}
+        selected_folder = st.selectbox(
+            "Select default folder for transcripts",
+            options=list(folder_names.keys()),
+            help="Choose a folder where your transcripts will be saved",
+        )
+
+        if selected_folder:
+            folder_id = folder_names[selected_folder]
+            # Store the selection in session state
+            st.session_state.google_drive_folder = {
+                "name": selected_folder,
+                "id": folder_id,
+            }
+            return folder_id
+
+    except Exception as e:
+        st.error(f"Failed to list Google Drive folders: {str(e)}")
+        return None
+
+
 def upload_to_google_drive(content, filename, mime_type):
     """
     Upload content to Google Drive.
-
     Args:
         content: The content to upload (bytes or string)
         filename: Name of the file to create
         mime_type: MIME type of the file
-
     Returns:
         dict: File metadata from Google Drive or None if upload failed
     """
@@ -753,8 +805,10 @@ def upload_to_google_drive(content, filename, mime_type):
         if isinstance(content, str):
             content = content.encode("utf-8")
 
-        # Create file metadata
+        # Create file metadata with parent folder if set
         file_metadata = {"name": filename}
+        if "google_drive_folder" in st.session_state:
+            file_metadata["parents"] = [st.session_state.google_drive_folder["id"]]
 
         # Create media
         fh = BytesIO(content)
@@ -773,5 +827,20 @@ def upload_to_google_drive(content, filename, mime_type):
         st.error(f"Failed to upload to Google Drive: {str(e)}")
         return None
 
+
+# Add Google Drive folder selection to sidebar for Google users
+if st.experimental_user.get("is_logged_in") and st.experimental_user.get(
+    "email", ""
+).endswith("@gmail.com"):
+    with st.sidebar:
+        st.divider()
+        st.subheader("🗂️ Google Drive Settings")
+        if st.button("Set Default Folder"):
+            select_google_drive_folder()
+
+        if "google_drive_folder" in st.session_state:
+            st.success(
+                f"Default folder: {st.session_state.google_drive_folder['name']}"
+            )
 
 display_table_data()
