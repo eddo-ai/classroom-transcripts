@@ -276,7 +276,7 @@ def get_transcript_statuses():
 
 
 def query_table_entities(
-    table_client, user_email: str, table_name: str = "Transcriptions"
+    table_client, user_email: str, table_name: str
 ):
     """
     Query table entities based on user permissions.
@@ -284,7 +284,7 @@ def query_table_entities(
     Args:
         table_client: Azure TableClient instance
         user_email: Email of the current user
-        table_name: Name of the table to query (default: TranscriptMappings)
+        table_name: Name of the table to query
 
     Returns:
         List of entities the user has permission to view
@@ -325,7 +325,7 @@ def load_table_data(_table_client):
     validated_email = user.email if user.email_verified else None
 
     if validated_email is not None:
-        table_name = "debug_transcriptions" if DEBUG else "Transcriptions"
+        table_name = os.getenv("AZURE_STORAGE_TABLE_NAME", "TranscriptionMappings")
         # Use consolidated query function
         items = query_table_entities(_table_client, str(validated_email), table_name)
 
