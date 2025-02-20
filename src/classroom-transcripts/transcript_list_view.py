@@ -1,5 +1,5 @@
 import streamlit as st
-from classroom_transcripts.utils.view_table import get_table_client, list_table_items
+from classroom-transcripts.utils.view_table import get_table_client, list_table_items
 from datetime import datetime
 import pytz
 import assemblyai as aai
@@ -8,7 +8,7 @@ import logging
 from docx import Document
 from io import BytesIO
 import pydantic
-from classroom_transcripts.utils.azure_storage import get_sas_url_for_audio_file_name
+from classroom-transcripts.utils.azure_storage import get_sas_url_for_audio_file_name
 
 # Global configuration and constants
 DEBUG = bool(st.secrets.get("DEBUG", False))

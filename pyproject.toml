@@ -1,5 +1,5 @@
 [project]
-name = "classroom_transcripts"
+name = "classroom-transcripts"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -28,4 +28,4 @@ dev-dependencies = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["classroom_transcripts"]
+packages = ["classroom-transcripts"]
