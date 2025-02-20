@@ -5,7 +5,8 @@ import logging
 # Configure debug settings
 DEBUG = bool(st.secrets.get("DEBUG", False))
 if DEBUG:
-    logging.getLogger("watchdog").setLevel(logging.INFO)
+    logging.getLogger("watchdog").setLevel(logging.WARN
+    )
     logging.basicConfig(level=logging.DEBUG)
     st.write("Debug mode enabled")
     
@@ -14,14 +15,14 @@ if DEBUG:
 ACCESS_TOKEN = os.getenv("MGMT_API_ACCESS_TOKEN")
 
 upload_page = st.Page(
-    "./src/classroom_transcripts/upload.py",
+    "./classroom_transcripts/upload.py",
     title="Upload Audio",
     icon="📤",
     url_path="/upload",
     default=True,
 )
 list_page = st.Page(
-    "./src/classroom_transcripts/transcript_list_view.py",
+    "./classroom_transcripts/transcript_list_view.py",
     title="Transcripts",
     icon="🎙️",
     url_path="/transcripts",
