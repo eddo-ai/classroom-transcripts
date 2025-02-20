@@ -14,14 +14,14 @@ if DEBUG:
 ACCESS_TOKEN = os.getenv("MGMT_API_ACCESS_TOKEN")
 
 upload_page = st.Page(
-    "src/classroom_transcripts/upload.py",
+    "src/classroom-transcripts/upload.py",
     title="Upload Audio",
     icon="📤",
     url_path="/upload",
     default=True,
 )
 list_page = st.Page(
-    "src/classroom_transcripts/transcript_list_view.py",
+    "src/classroom-transcripts/transcript_list_view.py",
     title="Transcripts",
     icon="🎙️",
     url_path="/transcripts",
