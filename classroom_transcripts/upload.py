@@ -9,6 +9,7 @@ import asyncio
 from classroom_transcripts.utils.transcript_mapping import create_upload_entity
 from classroom_transcripts.utils.table_client import get_table_client
 from classroom_transcripts.utils.azure_storage import get_sas_url_for_audio_file_name
+from urllib.parse import quote
 
 DEBUG = bool(st.secrets.get("DEBUG", False))
 table_name = st.secrets.get("AZURE_STORAGE_TABLE_NAME", "TranscriptionMappings")
