@@ -2,6 +2,10 @@
 
 Azure Functions app for transcribing classroom audio using AssemblyAI, with a focus on speaker identification and classroom discussion analysis.
 
+## Project Version
+
+The current project version is **0.1.0**.
+
 ## Project Structure
 
 ```

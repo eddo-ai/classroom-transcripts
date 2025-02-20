@@ -407,35 +407,43 @@ if st.experimental_user.get("is_logged_in"):
                         )
 
                         # Create new config with selected speaker count
-                        config = aai.TranscriptionConfig(
-                            speaker_labels=True,
-                            speakers_expected=st.session_state.speaker_count
-                            if st.session_state.use_speaker_count
-                            else None,
-                            speech_model=aai.SpeechModel.best,
-                            iab_categories=True,
-                            auto_chapters=True,
-                            content_safety=True,
-                            auto_highlights=False,
-                            sentiment_analysis=True,
-                            filter_profanity=True,
-                            language_detection=False,
-                            language_code="en",
-                        ).set_redact_pii(
-                            policies=[
-                                aai.PIIRedactionPolicy.medical_condition,
-                                aai.PIIRedactionPolicy.email_address,
-                                aai.PIIRedactionPolicy.phone_number,
-                                aai.PIIRedactionPolicy.banking_information,
-                                aai.PIIRedactionPolicy.credit_card_number,
-                                aai.PIIRedactionPolicy.credit_card_cvv,
-                                aai.PIIRedactionPolicy.date_of_birth,
-                                aai.PIIRedactionPolicy.person_name,
-                                aai.PIIRedactionPolicy.organization,
-                                aai.PIIRedactionPolicy.location,
-                            ],
-                            redact_audio=True,
-                            substitution=aai.PIISubstitutionPolicy.hash,
+                        config = (
+                            aai.TranscriptionConfig(
+                                speaker_labels=True,
+                                speakers_expected=st.session_state.speaker_count
+                                if st.session_state.use_speaker_count
+                                else None,
+                                speech_model=aai.SpeechModel.best,
+                                iab_categories=True,
+                                auto_chapters=True,
+                                content_safety=True,
+                                auto_highlights=False,
+                                sentiment_analysis=True,
+                                filter_profanity=True,
+                                language_detection=False,
+                                language_code="en",
+                            )
+                            .set_redact_pii(
+                                policies=[
+                                    aai.PIIRedactionPolicy.medical_condition,
+                                    aai.PIIRedactionPolicy.email_address,
+                                    aai.PIIRedactionPolicy.phone_number,
+                                    aai.PIIRedactionPolicy.banking_information,
+                                    aai.PIIRedactionPolicy.credit_card_number,
+                                    aai.PIIRedactionPolicy.credit_card_cvv,
+                                    aai.PIIRedactionPolicy.date_of_birth,
+                                    aai.PIIRedactionPolicy.person_name,
+                                    aai.PIIRedactionPolicy.organization,
+                                    aai.PIIRedactionPolicy.location,
+                                ],
+                                redact_audio=True,
+                                substitution=aai.PIISubstitutionPolicy.hash,
+                            )
+                            .set_webhook(
+                                os.getenv("ASSEMBLYAI_CALLBACK_URL"),
+                                "X-Transcript-Webhook-Secret",
+                                st.secrets.get("ASSEMBLYAI_WEBHOOK_AUTH_HEADER_VALUE"),
+                            )
                         )
 
                         safe_url = quote(blob_sas_url, safe=":/?&=%")
