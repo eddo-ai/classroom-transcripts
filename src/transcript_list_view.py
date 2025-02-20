@@ -95,7 +95,6 @@ if DEBUG:
 def is_admin(email: str) -> bool:
     """Check if the given email belongs to an admin"""
     return email.lower() in ADMIN_EMAILS
-
 # Get admin emails from Streamlit secrets
 ADMIN_EMAILS = [
     email.strip().lower() for email in st.secrets.get("admin_emails", "").split(",")
@@ -391,12 +390,9 @@ if DEBUG:
 
 
 def can_view_transcript(transcript_email: str, user_email: str) -> bool:
-def can_view_transcript(transcript_email: str, user_email: str) -> bool:
     """Check if user can view a specific transcript"""
     if is_admin(user_email):
-    if is_admin(user_email):
         return True
-    # If no uploader email is set, only admins can view
     # If no uploader email is set, only admins can view
     if not transcript_email:
         return False
@@ -408,15 +404,7 @@ def get_transcript_statuses():
     # Check if we have cached statuses and they're not expired
 
     try:
-    # Check if we have cached statuses and they're not expired
-
-    try:
         status_map = {}
-        params = aai.ListTranscriptParameters(limit=100)  # Adjust limit as needed
-
-        # Get first page
-        page = transcriber.list_transcripts(params)
-        for t in page.transcripts:
         params = aai.ListTranscriptParameters(limit=100)  # Adjust limit as needed
 
         # Get first page
@@ -433,11 +421,6 @@ def get_transcript_statuses():
             params.before_id = page.page_details.before_id_of_prev_url
             page = transcriber.list_transcripts(params)
             for t in page.transcripts:
-        # Paginate through all remaining pages
-        while page.page_details.before_id_of_prev_url is not None:
-            params.before_id = page.page_details.before_id_of_prev_url
-            page = transcriber.list_transcripts(params)
-            for t in page.transcripts:
                 if t.id.startswith("test_"):
                     status_map[t.id] = "completed"
                 else:
@@ -446,7 +429,6 @@ def get_transcript_statuses():
         return status_map
     except Exception as e:
         st.error(f"Error getting transcript statuses: {str(e)}")
-        # Return cached data if available, even if expired
         # Return cached data if available, even if expired
         return {}
 
@@ -488,12 +470,6 @@ def query_table_entities(table_client, user_email: str):
                     f"Debug - User {user_email} is not admin, fetching only their items"
                 )
             filter_condition = f"uploaderEmail eq '{user_email.lower()}'"
-        if not is_admin(user_email):
-            if DEBUG:
-                st.info(
-                    f"Debug - User {user_email} is not admin, fetching only their items"
-                )
-            filter_condition = f"uploaderEmail eq '{user_email.lower()}'"
             items = list(table_client.query_entities(filter_condition))
         else:
             if DEBUG:
@@ -526,24 +502,24 @@ def load_table_data(_table_client):
     if validated_email is not None:
         # Use consolidated query function
         items = query_table_entities(_table_client, str(validated_email))
-            if DEBUG:
-                st.info(f"Debug - User {user_email} is admin, fetching all items")
-            items = list_table_items(
-                st.session_state.get(
-                    "table_name", st.secrets.get("AZURE_STORAGE_TABLE_NAME")
-                )
+        if DEBUG:
+            st.info(f"Debug - User {user_email} is admin, fetching all items")
+        items = list_table_items(
+            st.session_state.get(
+                "table_name", st.secrets.get("AZURE_STORAGE_TABLE_NAME")
             )
+        )
 
-        if DEBUG:
-            st.info(f"Debug - Number of items fetched: {len(items) if items else 0}")
-        return items
+    if DEBUG:
+        st.info(f"Debug - Number of items fetched: {len(items) if items else 0}")
+    return items
 
-    except Exception as e:
-        logging.error(f"Error querying table: {e}")
-        if DEBUG:
-            st.error(f"Debug - Error querying table: {str(e)}")
-            st.write(f"Debug - Table client state: {table_client}")
-        return []
+except Exception as e:
+    logging.error(f"Error querying table: {e}")
+    if DEBUG:
+        st.error(f"Debug - Error querying table: {str(e)}")
+        st.write(f"Debug - Table client state: {table_client}")
+    return []
 
 
 def load_table_data(_table_client):
