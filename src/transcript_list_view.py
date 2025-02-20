@@ -95,19 +95,6 @@ if DEBUG:
 def is_admin(email: str) -> bool:
     """Check if the given email belongs to an admin"""
     return email.lower() in ADMIN_EMAILS
-# Get admin emails from Streamlit secrets
-ADMIN_EMAILS = [
-    email.strip().lower() for email in st.secrets.get("admin_emails", "").split(",")
-]
-
-# Debug logging for admin list
-if DEBUG:
-    st.write("Debug - Admin emails:", ADMIN_EMAILS)
-
-
-def is_admin(email: str) -> bool:
-    """Check if the given email belongs to an admin"""
-    return email.lower() in ADMIN_EMAILS
 
 
 def reset_pagination():
@@ -135,11 +122,6 @@ def localized_timestamp(timestamp):
     local_timestamp = timestamp.astimezone(local_tz)
     time_string = local_timestamp.strftime("%Y-%m-%d %H:%M:%S %Z")
     return time_string
-def localized_timestamp(timestamp):
-    """Get localized timestamp"""
-    local_timestamp = timestamp.astimezone(local_tz)
-    time_string = local_timestamp.strftime("%Y-%m-%d %H:%M:%S %Z")
-    return time_string
 
 
 def get_transcript_status(transcript_id):
@@ -157,112 +139,6 @@ def get_transcript_status(transcript_id):
         st.error(f"Error getting transcript status: {str(e)}")
         return "error"
 
-
-def generate_transcript_markdown(transcript, max_length=None, max_speaker_turns=None):
-    """
-    Generate markdown formatted text from an AssemblyAI transcript.
-
-    Args:
-        transcript: AssemblyAI Transcript object
-        max_length (int, optional): Maximum length of text to include
-        max_speaker_turns (int, optional): Maximum number of speaker turns to include
-
-    Returns:
-        str: Markdown formatted transcript text
-    """
-    if not transcript:
-        return "No transcript available"
-
-    markdown_lines = []
-
-    # Handle transcripts with speaker detection
-    if transcript.utterances:
-        for i, utterance in enumerate(transcript.utterances):
-            # Break if we've hit the max speaker turns
-            if max_speaker_turns and i >= max_speaker_turns:
-                markdown_lines.append(
-                    "\n*[Additional transcript content truncated...]*"
-                )
-                break
-
-            # Format timestamp as [00:00:00]
-            start_seconds = utterance.start / 1000.0  # Convert milliseconds to seconds
-            hours = int(start_seconds // 3600)
-            minutes = int((start_seconds % 3600) // 60)
-            seconds = int(start_seconds % 60)
-            timestamp = f"[{hours:02d}:{minutes:02d}:{seconds:02d}]"
-
-            # Format as [timestamp] **Speaker X**: text
-            speaker_letter = (
-                chr(65 + (utterance.speaker - 1))
-                if isinstance(utterance.speaker, int)
-                else utterance.speaker
-            )
-            speaker_text = f"{timestamp} **Speaker {speaker_letter}**: {utterance.text}"
-            markdown_lines.append(speaker_text)
-
-            # Check total length if max_length specified
-            current_text = "\n".join(markdown_lines)
-            if max_length and len(current_text) >= max_length:
-                truncate_length = max_length - len(
-                    "\n\n*[Additional transcript content truncated...]*"
-                )
-                markdown_lines[-1] = str(markdown_lines[-1])[:truncate_length]
-                markdown_lines.append(
-                    "\n*[Additional transcript content truncated...]*"
-                )
-                break
-
-    # Handle transcripts without speaker detection
-    elif transcript.text:
-        text = transcript.text
-        if max_length:
-            truncate_length = max_length
-            text = str(text)[:truncate_length] + (
-                "..." if len(transcript.text) > truncate_length else ""
-            )
-        markdown_lines.append(text)
-
-    return "\n\n".join(markdown_lines)
-
-
-def generate_transcript_docx(transcript):
-    """
-    Generate a docx file from an AssemblyAI transcript.
-
-    Args:
-        transcript: AssemblyAI Transcript object
-
-    Returns:
-        bytes: The generated docx file as bytes
-    """
-    doc = Document()
-    doc.add_heading("Transcript", 0)
-
-    if transcript.utterances:
-        # Add each speaker's text as a paragraph
-        for utterance in transcript.utterances:
-            p = doc.add_paragraph()
-            # Add speaker label in bold
-            speaker_run = p.add_run(f"Speaker {utterance.speaker}: ")
-            speaker_run.bold = True
-            # Add the text
-            p.add_run(utterance.text)
-            # Add spacing between utterances
-            p.add_run("\n")
-    else:
-        # Add the full text as a single paragraph
-        doc.add_paragraph(transcript.text)
-
-    # Add metadata
-    doc.core_properties.title = "Transcript"
-    doc.core_properties.comments = "Generated from AssemblyAI transcription"
-
-    # Save to bytes
-    docx_bytes = BytesIO()
-    doc.save(docx_bytes)
-    docx_bytes.seek(0)
-    return docx_bytes.getvalue()
 
 
 def generate_transcript_markdown(transcript, max_length=None, max_speaker_turns=None):
@@ -447,20 +323,6 @@ def query_table_entities(table_client, user_email: str):
 
     if not user_email:
         return []
-def query_table_entities(table_client, user_email: str):
-    """
-    Query table entities based on user permissions.
-
-    Args:
-        table_client: Azure TableClient instance
-        user_email: Email of the current user
-
-    Returns:
-        List of entities the user has permission to view
-    """
-
-    if not user_email:
-        return []
 
     try:
         # For regular users, only fetch their items
@@ -502,36 +364,6 @@ def load_table_data(_table_client):
     if validated_email is not None:
         # Use consolidated query function
         items = query_table_entities(_table_client, str(validated_email))
-        if DEBUG:
-            st.info(f"Debug - User {user_email} is admin, fetching all items")
-        items = list_table_items(
-            st.session_state.get(
-                "table_name", st.secrets.get("AZURE_STORAGE_TABLE_NAME")
-            )
-        )
-
-    if DEBUG:
-        st.info(f"Debug - Number of items fetched: {len(items) if items else 0}")
-    return items
-
-except Exception as e:
-    logging.error(f"Error querying table: {e}")
-    if DEBUG:
-        st.error(f"Debug - Error querying table: {str(e)}")
-        st.write(f"Debug - Table client state: {table_client}")
-    return []
-
-
-def load_table_data(_table_client):
-    """Load and process table data with caching"""
-    MIN_DATE = datetime(2000, 1, 1, tzinfo=pytz.UTC)
-
-    user = st.experimental_user
-    validated_email = user.email if user.email_verified else None
-
-    if validated_email is not None:
-        # Use consolidated query function
-        items = query_table_entities(_table_client, str(validated_email))
 
     if not items:
         return []
@@ -594,18 +426,6 @@ def load_table_data(_table_client):
                     dt = dt.replace(tzinfo=pytz.UTC)
             else:
                 dt = MIN_DATE
-        try:
-            # Handle different timestamp types
-            if isinstance(item_dict["uploadTime"], str):
-                dt = datetime.fromisoformat(
-                    item_dict["uploadTime"].replace("Z", "+00:00")
-                )
-            elif isinstance(item_dict["uploadTime"], datetime):
-                dt = item_dict["uploadTime"]
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=pytz.UTC)
-            else:
-                dt = MIN_DATE
 
             local_dt = dt.astimezone(local_tz)
             item_dict["_timestamp"] = local_dt
@@ -617,11 +437,6 @@ def load_table_data(_table_client):
             local_dt = dt.astimezone(local_tz)
             item_dict["_timestamp"] = local_dt
             item_dict["uploadTime"] = local_dt
-        except ValueError as e:
-            logging.error(f"Error parsing time: {e}")
-            item_dict["_timestamp"] = MIN_DATE
-            item_dict["uploadTime"] = MIN_DATE
-
         # Add class name and description
         item_dict["className"] = item_dict.get("className", None)
         item_dict["description"] = item_dict.get("description", None)
@@ -631,79 +446,10 @@ def load_table_data(_table_client):
         items_list.append(item_dict)
 
     return items_list
-    return items_list
 
 
 def display_transcript_item(item):
     """Display a single transcript item in a fragment"""
-    try:
-        transcript_id = item.get("transcriptId")
-        if not transcript_id:
-            st.error("Missing transcript ID")
-            return
-
-        # Get status info for formatting
-        upload_time = item.get("uploadTime")
-        upload_time_str = localized_timestamp(upload_time)
-        original_file_name = item.get("originalFileName", "Untitled")
-        row_key = item.get("RowKey", "")
-        status = item.get("status")
-        class_name = item.get("className", "")
-        uploader_email = item.get("uploaderEmail", "Unknown")
-
-        # Choose icon based on status
-        status_icon = "📄"  # Default icon
-        if status in ["queued", "processing"]:
-            status_icon = "⏳"
-        elif status in ["error", "failed"]:
-            status_icon = "❌"
-
-        # Format display name - use class name if available, otherwise use original file name
-        display_name = class_name if class_name else original_file_name
-
-        # Format uploader email - show only the part before @ symbol
-        uploader_display = (
-            uploader_email.split("@")[0] if "@" in uploader_email else uploader_email
-        )
-
-        # Format date to be more concise
-        date_display = (
-            upload_time.strftime("%Y-%m-%d")
-            if isinstance(upload_time, datetime)
-            else str(upload_time)
-        )
-
-        with st.expander(
-            f"{status_icon} {display_name} | by {uploader_display} | {date_display}",
-            expanded=False,
-        ):
-            description = item.get("description", "")
-            size = item.get("formatted_size", "")
-
-            if class_name:
-                st.write(f"**Class**: {class_name}")
-                st.write(f"**File**: {original_file_name}")
-            else:
-                st.write(f"**File**: {original_file_name}")
-
-            if description:
-                st.write(f"**Description**: {description}")
-            st.write(f"**Uploaded**: {upload_time_str}")
-            st.write(f"**Size**: {size}")
-
-            # Audio player
-            audio_url_with_sas = get_sas_url_for_audio_file_name(row_key)
-            if audio_url_with_sas:
-                st.audio(audio_url_with_sas)
-
-            # Only fetch full transcript details if status is completed and user expands the item
-            transcript = None
-            if status == "completed" and transcript_id:
-                try:
-                    transcript = aai.Transcript.get_by_id(transcript_id)
-                except pydantic.ValidationError as ve:
-                    st.warning(
-                        "Some transcript features may be limited due to API changes. Basic transcript text is still available."
     try:
         transcript_id = item.get("transcriptId")
         if not transcript_id:
@@ -880,7 +626,6 @@ def display_table_data():
     end_idx = st.session_state.items_per_page
 
     # Display items in fragments
-    for item in items_list[start_idx:end_idx]:
     for item in items_list[start_idx:end_idx]:
         with st.container():
             display_transcript_item(item)
