@@ -1,5 +1,5 @@
 import streamlit as st
-from src.utils.view_table import get_table_client, list_table_items
+from classroom_transcripts.utils.view_table import get_table_client, list_table_items
 from datetime import datetime
 import pytz
 import assemblyai as aai
@@ -8,7 +8,7 @@ import logging
 from docx import Document
 from io import BytesIO
 import pydantic
-from utils.azure_storage import get_sas_url_for_audio_file_name
+from classroom_transcripts.utils.azure_storage import get_sas_url_for_audio_file_name
 
 # Global configuration and constants
 DEBUG = bool(st.secrets.get("DEBUG", False))
@@ -216,6 +216,7 @@ def query_table_entities(table_client, user_email: str):
         else:
             if DEBUG:
                 st.info(f"Debug - User {user_email} is admin, fetching all items")
+            table_name = st.secrets.get("AZURE_STORAGE_TABLE_NAME", os.getenv("AZURE_STORAGE_TABLE_NAME"))
             items = list_table_items(table_name)
         if DEBUG:
             st.info(f"Debug - Number of items fetched: {len(items) if items else 0}")
