@@ -1,6 +1,6 @@
 - Use azure-identity and managed identity for Azure resources
 - define env variables in .env.example
-- use `uv add <package>` to add dependencies. Project uses pyproject.toml and uv.lock files for dependency management
+- use `uv` to manage venv and dependencies. Project uses pyproject.toml and uv.lock files for dependency management
 - Use Azure CLI Reference to correctly format commands
 - Use AssemblyAI API Reference to correctly format requests
 - Use Github Actions Reference for workflow syntax
