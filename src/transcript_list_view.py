@@ -8,6 +8,7 @@ import logging
 from docx import Document
 from io import BytesIO
 import pydantic
+import html
 
 from utils.azure_storage import get_sas_url_for_audio_file_name
 
@@ -463,7 +464,28 @@ def display_transcript_item(item):
             # Audio player
             audio_url_with_sas = get_sas_url_for_audio_file_name(row_key)
             if audio_url_with_sas:
-                st.audio(audio_url_with_sas)
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.audio(audio_url_with_sas)
+                with col2:
+                    # Add download button for audio file
+                    file_extension = (
+                        original_file_name.split(".")[-1]
+                        if "." in original_file_name
+                        else "mp3"
+                    )
+                    safe_filename = html.escape(original_file_name)
+                    st.markdown(
+                        f'<a href="{audio_url_with_sas}" download="{safe_filename}" '
+                        f'style="display: inline-block; padding: 0.25rem 0.75rem; '
+                        f"font-weight: 400; line-height: 1.6; text-align: center; "
+                        f"vertical-align: middle; border: 1px solid #6c757d; "
+                        f"border-radius: 0.25rem; color: white; "
+                        f"background-color: #0066cc; text-decoration: none; "
+                        f'width: 100%; box-sizing: border-box;">'
+                        f"Download Audio</a>",
+                        unsafe_allow_html=True,
+                    )
 
             # Only fetch full transcript details if status is completed and user expands the item
             transcript = None
@@ -491,7 +513,7 @@ def display_transcript_item(item):
                         exc_info=True,
                     )
 
-                if DEBUG and transcript:
+                if transcript:
                     # Good transcriptions have text and utterances
                     if transcript.text and transcript.utterances:
                         # Add download buttons in a row
@@ -519,10 +541,11 @@ def display_transcript_item(item):
                                 key=f"download_transcript_docx_{row_key}",
                             )
 
-                        ### Show transcript
-                        st.markdown("#### 📝 Transcript")
-                        full_markdown = generate_transcript_markdown(transcript)
-                        st.markdown(full_markdown)
+                        # Display transcript preview in debug mode
+                        if DEBUG:
+                            # Show transcript
+                            st.markdown("#### 📝 Transcript")
+                            st.markdown(full_markdown)
 
                     elif transcript.text:
                         st.info("AI failed to distinguish speakers.")
@@ -550,10 +573,6 @@ def display_transcript_item(item):
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                 key=f"download_transcript_docx_no_speakers_{row_key}",
                             )
-
-                        # Show full transcript
-                        st.markdown("#### 📝 Transcript")
-                        st.write(transcript.text)
 
             elif status in ["queued", "processing"]:
                 with st.container(border=True):
