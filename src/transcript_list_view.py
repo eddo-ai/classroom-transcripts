@@ -469,11 +469,6 @@ def display_transcript_item(item):
                     st.audio(audio_url_with_sas)
                 with col2:
                     # Add download button for audio file
-                    file_extension = (
-                        original_file_name.split(".")[-1]
-                        if "." in original_file_name
-                        else "mp3"
-                    )
                     safe_filename = html.escape(original_file_name)
                     st.markdown(
                         f'<a href="{audio_url_with_sas}" download="{safe_filename}" '
@@ -541,11 +536,14 @@ def display_transcript_item(item):
                                 key=f"download_transcript_docx_{row_key}",
                             )
 
-                        # Display transcript preview in debug mode
-                        if DEBUG:
-                            # Show transcript
-                            st.markdown("#### 📝 Transcript")
-                            st.markdown(full_markdown)
+                        # Display transcript preview for all users
+                        st.markdown("#### 📝 Transcript")
+                        preview_markdown = generate_transcript_markdown(
+                            transcript,
+                            max_length=TRANSCRIPT_PREVIEW_MAX_LENGTH,
+                            max_speaker_turns=TRANSCRIPT_PREVIEW_SPEAKER_TURNS,
+                        )
+                        st.markdown(preview_markdown)
 
                     elif transcript.text:
                         st.info("AI failed to distinguish speakers.")
@@ -573,6 +571,16 @@ def display_transcript_item(item):
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                 key=f"download_transcript_docx_no_speakers_{row_key}",
                             )
+
+                        # Display transcript preview for all users
+                        st.markdown("#### 📝 Transcript")
+                        if len(transcript.text) > TRANSCRIPT_PREVIEW_MAX_LENGTH:
+                            preview_text = (
+                                transcript.text[:TRANSCRIPT_PREVIEW_MAX_LENGTH] + "..."
+                            )
+                        else:
+                            preview_text = transcript.text
+                        st.text(preview_text)
 
             elif status in ["queued", "processing"]:
                 with st.container(border=True):
