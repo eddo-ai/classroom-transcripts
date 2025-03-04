@@ -4,6 +4,8 @@ import logging
 
 # Configure debug settings
 DEBUG = bool(st.secrets.get("DEBUG", False))
+if DEBUG:
+    st.toast("Debug mode enabled")
 
 # Configure logging
 logging.basicConfig(level=logging.WARNING)
