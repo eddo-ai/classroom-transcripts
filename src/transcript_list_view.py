@@ -39,7 +39,7 @@ try:
 
     # Initialize session state for status values if not already set
     if "transcription_statuses" not in st.session_state:
-        st.session_state.transcription_statuses = [
+        st.session_state["transcription_statuses"] = [
             "queued",
             "processing",
             "completed",
@@ -59,7 +59,7 @@ try:
 
     # Initialize timezone in session state
     if "timezone" not in st.session_state:
-        st.session_state.timezone = "US/Pacific"
+        st.session_state["timezone"] = "US/Pacific"
 
     # Initialize table client early
     try:
@@ -73,9 +73,9 @@ try:
 
     # Initialize session state for pagination
     if "items_per_page" not in st.session_state:
-        st.session_state.items_per_page = 5  # Initial number of items to show
+        st.session_state["items_per_page"] = 5  # Initial number of items to show
     if "current_page" not in st.session_state:
-        st.session_state.current_page = 1
+        st.session_state["current_page"] = 1
 
     # Get admin emails from Streamlit secrets
     ADMIN_EMAILS = [
@@ -92,8 +92,8 @@ try:
 
     def reset_pagination():
         """Reset pagination state"""
-        st.session_state.items_per_page = 5
-        st.session_state.current_page = 1
+        st.session_state["items_per_page"] = 5
+        st.session_state["current_page"] = 1
 
     def format_file_size(size_in_bytes):
         """Convert bytes to human readable format"""
@@ -107,7 +107,9 @@ try:
 
     def localized_timestamp(timestamp):
         """Get localized timestamp"""
-        local_timestamp = timestamp.astimezone(pytz.timezone(st.session_state.timezone))
+        local_timestamp = timestamp.astimezone(
+            pytz.timezone(st.session_state["timezone"])
+        )
         time_string = local_timestamp.strftime("%Y-%m-%d %H:%M:%S %Z")
         return time_string
 
@@ -140,64 +142,116 @@ try:
         Returns:
             str: Markdown formatted transcript text
         """
+        logger.debug(
+            "Starting transcript markdown generation",
+            extra={
+                "has_transcript": bool(transcript),
+                "max_length": max_length,
+                "max_speaker_turns": max_speaker_turns,
+            },
+        )
+
         if not transcript:
+            logger.warning("No transcript provided to generate_transcript_markdown")
             return "No transcript available"
 
         markdown_lines = []
 
-        # Handle transcripts with speaker detection
-        if transcript.utterances:
-            for i, utterance in enumerate(transcript.utterances):
-                # Break if we've hit the max speaker turns
-                if max_speaker_turns and i >= max_speaker_turns:
-                    markdown_lines.append(
-                        "\n*[Additional transcript content truncated...]*"
-                    )
-                    break
-
-                # Format timestamp as [00:00:00]
-                start_seconds = (
-                    utterance.start / 1000.0
-                )  # Convert milliseconds to seconds
-                hours = int(start_seconds // 3600)
-                minutes = int((start_seconds % 3600) // 60)
-                seconds = int(start_seconds % 60)
-                timestamp = f"[{hours:02d}:{minutes:02d}:{seconds:02d}]"
-
-                # Format as [timestamp] **Speaker X**: text
-                speaker_letter = (
-                    chr(65 + (utterance.speaker - 1))
-                    if isinstance(utterance.speaker, int)
-                    else utterance.speaker
+        try:
+            # Handle transcripts with speaker detection
+            if hasattr(transcript, "utterances") and transcript.utterances:
+                logger.debug(
+                    "Processing transcript with speaker detection",
+                    extra={"utterance_count": len(transcript.utterances)},
                 )
-                speaker_text = (
-                    f"{timestamp} **Speaker {speaker_letter}**: {utterance.text}"
-                )
-                markdown_lines.append(speaker_text)
 
-                # Check total length if max_length specified
-                current_text = "\n".join(markdown_lines)
-                if max_length and len(current_text) >= max_length:
-                    truncate_length = max_length - len(
-                        "\n\n*[Additional transcript content truncated...]*"
+                for i, utterance in enumerate(transcript.utterances):
+                    # Break if we've hit the max speaker turns
+                    if max_speaker_turns and i >= max_speaker_turns:
+                        markdown_lines.append(
+                            "\n*[Additional transcript content truncated...]*"
+                        )
+                        logger.debug(
+                            f"Reached max speaker turns limit: {max_speaker_turns}"
+                        )
+                        break
+
+                    try:
+                        # Format timestamp as [00:00:00]
+                        start_seconds = (
+                            utterance.start / 1000.0
+                        )  # Convert milliseconds to seconds
+                        hours = int(start_seconds // 3600)
+                        minutes = int((start_seconds % 3600) // 60)
+                        seconds = int(start_seconds % 60)
+                        timestamp = f"[{hours:02d}:{minutes:02d}:{seconds:02d}]"
+
+                        # Format as [timestamp] **Speaker X**: text
+                        speaker_letter = (
+                            chr(65 + (utterance.speaker - 1))
+                            if isinstance(utterance.speaker, int)
+                            else utterance.speaker
+                        )
+                        speaker_text = f"{timestamp} **Speaker {speaker_letter}**: {utterance.text}"
+                        markdown_lines.append(speaker_text)
+
+                        # Check total length if max_length specified
+                        current_text = "\n".join(markdown_lines)
+                        if max_length and len(current_text) >= max_length:
+                            truncate_length = max_length - len(
+                                "\n\n*[Additional transcript content truncated...]*"
+                            )
+                            markdown_lines[-1] = str(markdown_lines[-1])[
+                                :truncate_length
+                            ]
+                            markdown_lines.append(
+                                "\n*[Additional transcript content truncated...]*"
+                            )
+                            logger.debug(f"Reached max length limit: {max_length}")
+                            break
+                    except Exception as e:
+                        logger.error(
+                            f"Error processing utterance {i}",
+                            extra={
+                                "error": str(e),
+                                "utterance": str(utterance),
+                            },
+                            exc_info=True,
+                        )
+                        continue
+
+            # Handle transcripts without speaker detection
+            elif hasattr(transcript, "text") and transcript.text:
+                logger.debug("Processing transcript without speaker detection")
+                text = transcript.text
+                if max_length:
+                    truncate_length = max_length
+                    text = str(text)[:truncate_length] + (
+                        "..." if len(transcript.text) > truncate_length else ""
                     )
-                    markdown_lines[-1] = str(markdown_lines[-1])[:truncate_length]
-                    markdown_lines.append(
-                        "\n*[Additional transcript content truncated...]*"
-                    )
-                    break
-
-        # Handle transcripts without speaker detection
-        elif transcript.text:
-            text = transcript.text
-            if max_length:
-                truncate_length = max_length
-                text = str(text)[:truncate_length] + (
-                    "..." if len(transcript.text) > truncate_length else ""
+                    logger.debug(f"Truncated text to length: {truncate_length}")
+                markdown_lines.append(text)
+            else:
+                logger.warning(
+                    "Transcript has neither utterances nor text",
+                    extra={"transcript_attrs": dir(transcript)},
                 )
-            markdown_lines.append(text)
+                return "Transcript format not recognized"
 
-        return "\n\n".join(markdown_lines)
+            result = "\n\n".join(markdown_lines)
+            logger.debug(
+                "Completed transcript markdown generation",
+                extra={"result_length": len(result)},
+            )
+            return result
+
+        except Exception as e:
+            logger.error(
+                "Failed to generate transcript markdown",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
+            return f"Error generating transcript: {str(e)}"
 
     def generate_transcript_docx(transcript):
         """
@@ -325,7 +379,7 @@ try:
 
             if not is_admin(user_email):
                 logger.debug(
-                    f"Fetching items for user", extra={"user_email": user_email}
+                    "Fetching items for user", extra={"user_email": user_email}
                 )
                 filter_condition = f"uploaderEmail eq '{user_email.lower()}'"
                 items = list(table_client.query_entities(filter_condition))
@@ -361,7 +415,7 @@ try:
         logger.info("Starting table data load")
 
         user = st.experimental_user
-        validated_email = user.email if user.email_verified else None
+        validated_email = user.get("email") if user.get("email_verified") else None
 
         if validated_email is None:
             logger.warning("No validated email available for user")
@@ -387,19 +441,19 @@ try:
                 # Add formatted size
                 if "blobSize" in item_dict:
                     item_dict["formatted_size"] = format_file_size(
-                        item_dict["blobSize"]
+                        item_dict.get("blobSize")
                     )
 
                 # Get status from cached transcript statuses
                 if "transcriptId" in item_dict:
                     item_dict["status"] = transcript_statuses.get(
-                        item_dict["transcriptId"], "error"
+                        item_dict.get("transcriptId"), "error"
                     )
                     logger.debug(
                         "Transcript status retrieved",
                         extra={
-                            "transcript_id": item_dict["transcriptId"],
-                            "status": item_dict["status"],
+                            "transcript_id": item_dict.get("transcriptId"),
+                            "status": item_dict.get("status"),
                         },
                     )
                 else:
@@ -409,7 +463,7 @@ try:
                         extra={"row_key": item_dict.get("RowKey", "unknown")},
                     )
 
-                item_dict["_previous_status"] = item_dict["status"]
+                item_dict["_previous_status"] = item_dict.get("status")
 
                 # Process timestamp
                 if "uploadTime" not in item_dict:
@@ -432,7 +486,9 @@ try:
                     else:
                         dt = MIN_DATE
 
-                    local_dt = dt.astimezone(pytz.timezone(st.session_state.timezone))
+                    local_dt = dt.astimezone(
+                        pytz.timezone(st.session_state["timezone"])
+                    )
                     item_dict["_timestamp"] = local_dt
                     item_dict["uploadTime"] = local_dt
                 except ValueError as e:
@@ -442,6 +498,7 @@ try:
                         extra={
                             "row_key": item_dict.get("RowKey", "unknown"),
                             "upload_time": item_dict.get("uploadTime"),
+                            "error": str(e),
                         },
                     )
                     item_dict["_timestamp"] = MIN_DATE
@@ -475,7 +532,7 @@ try:
                 return
 
             logger.debug(
-                "Displaying transcript item",
+                "Starting to display transcript item",
                 extra={
                     "transcript_id": transcript_id,
                     "status": item.get("status"),
@@ -491,6 +548,15 @@ try:
             status = item.get("status")
             class_name = item.get("className", "")
             uploader_email = item.get("uploaderEmail", "Unknown")
+
+            logger.debug(
+                "Retrieved item metadata",
+                extra={
+                    "upload_time": upload_time_str,
+                    "file_name": original_file_name,
+                    "status": status,
+                },
+            )
 
             # Choose icon based on status
             status_icon = "📄"  # Default icon
@@ -516,6 +582,7 @@ try:
                 else str(upload_time)
             )
 
+            logger.debug("Starting to render expander UI component")
             with st.expander(
                 f"{status_icon} {display_name} | by {uploader_display} | {date_display}",
                 expanded=False,
@@ -534,6 +601,7 @@ try:
                 st.write(f"**Uploaded**: {upload_time_str}")
                 st.write(f"**Size**: {size}")
 
+                logger.debug("Starting to process audio URL")
                 # Audio player
                 audio_url_with_sas = get_sas_url_for_audio_file_name(row_key)
                 if audio_url_with_sas:
@@ -542,18 +610,26 @@ try:
                 # Only fetch full transcript details if status is completed and user expands the item
                 transcript = None
                 if status == "completed" and transcript_id:
+                    logger.debug(
+                        f"Fetching completed transcript for ID: {transcript_id}"
+                    )
                     try:
                         transcript = aai.Transcript.get_by_id(transcript_id)
+                        logger.debug(
+                            "Successfully retrieved transcript from AssemblyAI"
+                        )
                     except Exception as e:
                         if "api error" in str(e).lower():
                             logger.error(
-                                f"AssemblyAI API error for transcript {transcript_id}: {str(e)}",
+                                "AssemblyAI API error",
+                                extra={"transcript_id": transcript_id, "error": str(e)},
                                 exc_info=True,
                             )
                             st.info("Transcript temporarily unavailable")
                         elif isinstance(e, pydantic.ValidationError):
                             logger.warning(
-                                f"Validation error for transcript {transcript_id}: {str(e)}"
+                                "Validation error for transcript",
+                                extra={"transcript_id": transcript_id, "error": str(e)},
                             )
                             try:
                                 transcript = aai.Transcript.get_by_id(transcript_id)
@@ -562,20 +638,29 @@ try:
                                     or not transcript.text
                                 ):
                                     transcript = None
+                                    logger.warning(
+                                        "Secondary transcript fetch returned invalid data"
+                                    )
                             except Exception as inner_e:
                                 logger.error(
-                                    f"Secondary transcript fetch error: {str(inner_e)}",
+                                    "Secondary transcript fetch error",
+                                    extra={
+                                        "transcript_id": transcript_id,
+                                        "error": str(inner_e),
+                                    },
                                     exc_info=True,
                                 )
                                 transcript = None
                         else:
                             logger.error(
-                                f"Unexpected error loading transcript {transcript_id}: {str(e)}",
+                                "Unexpected error loading transcript",
+                                extra={"transcript_id": transcript_id, "error": str(e)},
                                 exc_info=True,
                             )
                             st.info("Unable to load transcript")
 
                     if transcript:
+                        logger.debug("Starting to render transcript download buttons")
                         # Add download buttons in a row
                         col1, col2 = st.columns([1, 1])
 
@@ -601,10 +686,12 @@ try:
                                 key=f"download_transcript_docx_{row_key}",
                             )
 
+                        logger.debug("Starting to render transcript content")
                         ### Show transcript
                         st.markdown("#### 📝 Transcript")
                         full_markdown = generate_transcript_markdown(transcript)
                         st.markdown(full_markdown)
+                        logger.debug("Completed rendering transcript content")
 
                 elif status in ["queued", "processing"]:
                     with st.container(border=True):
@@ -630,15 +717,20 @@ try:
                             """
                         )
 
+            logger.debug(
+                "Completed displaying transcript item",
+                extra={"transcript_id": transcript_id, "row_key": row_key},
+            )
+
         except pydantic.ValidationError as e:
             logger.error(
                 "Validation error displaying transcript",
-                exc_info=True,
                 extra={
                     "transcript_id": transcript_id,
                     "error": str(e),
                     "row_key": item.get("RowKey", "unknown"),
                 },
+                exc_info=True,
             )
             st.error(
                 f"Could not load transcript {transcript_id} - the data may be corrupted or deleted"
@@ -647,21 +739,23 @@ try:
         except Exception as e:
             logger.error(
                 "Error displaying transcript",
-                exc_info=True,
                 extra={
                     "transcript_id": transcript_id,
                     "error": str(e),
                     "row_key": item.get("RowKey", "unknown"),
                 },
+                exc_info=True,
             )
             st.error(f"Error loading transcript: {str(e)}")
 
     def display_table_data():
         """Display the table data with progress indicators and error handling"""
         try:
+            logger.info("Starting to load and display table data")
             items_list = load_table_data(table_client)
 
             if not items_list:
+                logger.info("No files found in table data")
                 st.info("No files found")
                 return
 
@@ -669,40 +763,82 @@ try:
             items_list.sort(
                 key=lambda x: x.get("_timestamp", datetime.min), reverse=True
             )
+            logger.debug(
+                "Sorted table data",
+                extra={
+                    "total_items": len(items_list),
+                    "first_item_time": (
+                        items_list[0].get("_timestamp") if items_list else None
+                    ),
+                },
+            )
 
             # Calculate pagination
             total_items = len(items_list)
             start_idx = 0
-            end_idx = st.session_state.items_per_page
+            end_idx = st.session_state["items_per_page"]
+
+            logger.debug(
+                "Pagination calculated",
+                extra={
+                    "total_items": total_items,
+                    "items_per_page": st.session_state["items_per_page"],
+                    "start_idx": start_idx,
+                    "end_idx": end_idx,
+                },
+            )
 
             # Display items in fragments
-            for item in items_list[start_idx:end_idx]:
+            for idx, item in enumerate(items_list[start_idx:end_idx]):
                 try:
+                    logger.debug(
+                        f"Rendering item {idx + 1} of {min(end_idx, total_items)}",
+                        extra={"row_key": item.get("RowKey", "unknown")},
+                    )
                     with st.container():
                         display_transcript_item(item)
                 except Exception as e:
-                    logger.error(f"Error displaying item: {e}")
+                    logger.error(
+                        "Error displaying item",
+                        extra={
+                            "error": str(e),
+                            "row_key": item.get("RowKey", "unknown"),
+                            "index": idx,
+                        },
+                        exc_info=True,
+                    )
                     st.error(f"Error displaying item: {str(e)}")
                     continue
 
             # Load More button
             if end_idx < total_items:
+                logger.debug("Rendering Load More button")
                 col1, col2, col3 = st.columns([1, 2, 1])
                 with col2:
                     if st.button(
                         f"Load More ({total_items - end_idx} remaining)",
                         use_container_width=True,
                     ):
-                        st.session_state.items_per_page += 5
+                        logger.info("Load More button clicked")
+                        st.session_state["items_per_page"] += 5
                         st.rerun()
 
             # Show total count
             st.caption(
                 f"Showing {min(end_idx, total_items)} of {total_items} transcripts"
             )
+            logger.info(
+                "Completed displaying table data",
+                extra={
+                    "displayed_items": min(end_idx, total_items),
+                    "total_items": total_items,
+                },
+            )
 
         except Exception as e:
-            logger.error(f"Error in display_table_data: {str(e)}", exc_info=True)
+            logger.error(
+                "Error in display_table_data", extra={"error": str(e)}, exc_info=True
+            )
             st.error("Unable to load transcripts. Please try again later.")
 
     display_table_data()
