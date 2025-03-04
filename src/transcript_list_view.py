@@ -39,7 +39,7 @@ try:
 
     # Initialize session state for status values if not already set
     if "transcription_statuses" not in st.session_state:
-        st.session_state.transcription_statuses = [
+        st.session_state["transcription_statuses"] = [
             "queued",
             "processing",
             "completed",
@@ -59,7 +59,7 @@ try:
 
     # Initialize timezone in session state
     if "timezone" not in st.session_state:
-        st.session_state.timezone = "US/Pacific"
+        st.session_state["timezone"] = "US/Pacific"
 
     # Initialize table client early
     try:
@@ -73,9 +73,9 @@ try:
 
     # Initialize session state for pagination
     if "items_per_page" not in st.session_state:
-        st.session_state.items_per_page = 5  # Initial number of items to show
+        st.session_state["items_per_page"] = 5  # Initial number of items to show
     if "current_page" not in st.session_state:
-        st.session_state.current_page = 1
+        st.session_state["current_page"] = 1
 
     # Get admin emails from Streamlit secrets
     ADMIN_EMAILS = [
@@ -92,8 +92,8 @@ try:
 
     def reset_pagination():
         """Reset pagination state"""
-        st.session_state.items_per_page = 5
-        st.session_state.current_page = 1
+        st.session_state["items_per_page"] = 5
+        st.session_state["current_page"] = 1
 
     def format_file_size(size_in_bytes):
         """Convert bytes to human readable format"""
@@ -107,7 +107,9 @@ try:
 
     def localized_timestamp(timestamp):
         """Get localized timestamp"""
-        local_timestamp = timestamp.astimezone(pytz.timezone(st.session_state.timezone))
+        local_timestamp = timestamp.astimezone(
+            pytz.timezone(st.session_state["timezone"])
+        )
         time_string = local_timestamp.strftime("%Y-%m-%d %H:%M:%S %Z")
         return time_string
 
@@ -146,8 +148,8 @@ try:
         markdown_lines = []
 
         # Handle transcripts with speaker detection
-        if transcript.utterances:
-            for i, utterance in enumerate(transcript.utterances):
+        if transcript.get("utterances"):
+            for i, utterance in enumerate(transcript.get("utterances")):
                 # Break if we've hit the max speaker turns
                 if max_speaker_turns and i >= max_speaker_turns:
                     markdown_lines.append(
@@ -157,7 +159,7 @@ try:
 
                 # Format timestamp as [00:00:00]
                 start_seconds = (
-                    utterance.start / 1000.0
+                    utterance.get("start") / 1000.0
                 )  # Convert milliseconds to seconds
                 hours = int(start_seconds // 3600)
                 minutes = int((start_seconds % 3600) // 60)
@@ -166,12 +168,12 @@ try:
 
                 # Format as [timestamp] **Speaker X**: text
                 speaker_letter = (
-                    chr(65 + (utterance.speaker - 1))
-                    if isinstance(utterance.speaker, int)
-                    else utterance.speaker
+                    chr(65 + (utterance.get("speaker") - 1))
+                    if isinstance(utterance.get("speaker"), int)
+                    else utterance.get("speaker")
                 )
                 speaker_text = (
-                    f"{timestamp} **Speaker {speaker_letter}**: {utterance.text}"
+                    f"{timestamp} **Speaker {speaker_letter}**: {utterance.get('text')}"
                 )
                 markdown_lines.append(speaker_text)
 
@@ -188,12 +190,12 @@ try:
                     break
 
         # Handle transcripts without speaker detection
-        elif transcript.text:
-            text = transcript.text
+        elif transcript.get("text"):
+            text = transcript.get("text")
             if max_length:
                 truncate_length = max_length
                 text = str(text)[:truncate_length] + (
-                    "..." if len(transcript.text) > truncate_length else ""
+                    "..." if len(transcript.get("text", "")) > truncate_length else ""
                 )
             markdown_lines.append(text)
 
@@ -325,7 +327,7 @@ try:
 
             if not is_admin(user_email):
                 logger.debug(
-                    f"Fetching items for user", extra={"user_email": user_email}
+                    "Fetching items for user", extra={"user_email": user_email}
                 )
                 filter_condition = f"uploaderEmail eq '{user_email.lower()}'"
                 items = list(table_client.query_entities(filter_condition))
@@ -361,7 +363,7 @@ try:
         logger.info("Starting table data load")
 
         user = st.experimental_user
-        validated_email = user.email if user.email_verified else None
+        validated_email = user.get("email") if user.get("email_verified") else None
 
         if validated_email is None:
             logger.warning("No validated email available for user")
@@ -387,19 +389,19 @@ try:
                 # Add formatted size
                 if "blobSize" in item_dict:
                     item_dict["formatted_size"] = format_file_size(
-                        item_dict["blobSize"]
+                        item_dict.get("blobSize")
                     )
 
                 # Get status from cached transcript statuses
                 if "transcriptId" in item_dict:
                     item_dict["status"] = transcript_statuses.get(
-                        item_dict["transcriptId"], "error"
+                        item_dict.get("transcriptId"), "error"
                     )
                     logger.debug(
                         "Transcript status retrieved",
                         extra={
-                            "transcript_id": item_dict["transcriptId"],
-                            "status": item_dict["status"],
+                            "transcript_id": item_dict.get("transcriptId"),
+                            "status": item_dict.get("status"),
                         },
                     )
                 else:
@@ -409,7 +411,7 @@ try:
                         extra={"row_key": item_dict.get("RowKey", "unknown")},
                     )
 
-                item_dict["_previous_status"] = item_dict["status"]
+                item_dict["_previous_status"] = item_dict.get("status")
 
                 # Process timestamp
                 if "uploadTime" not in item_dict:
@@ -432,7 +434,9 @@ try:
                     else:
                         dt = MIN_DATE
 
-                    local_dt = dt.astimezone(pytz.timezone(st.session_state.timezone))
+                    local_dt = dt.astimezone(
+                        pytz.timezone(st.session_state["timezone"])
+                    )
                     item_dict["_timestamp"] = local_dt
                     item_dict["uploadTime"] = local_dt
                 except ValueError as e:
@@ -442,6 +446,7 @@ try:
                         extra={
                             "row_key": item_dict.get("RowKey", "unknown"),
                             "upload_time": item_dict.get("uploadTime"),
+                            "error": str(e),
                         },
                     )
                     item_dict["_timestamp"] = MIN_DATE
@@ -673,7 +678,7 @@ try:
             # Calculate pagination
             total_items = len(items_list)
             start_idx = 0
-            end_idx = st.session_state.items_per_page
+            end_idx = st.session_state["items_per_page"]
 
             # Display items in fragments
             for item in items_list[start_idx:end_idx]:
@@ -693,7 +698,7 @@ try:
                         f"Load More ({total_items - end_idx} remaining)",
                         use_container_width=True,
                     ):
-                        st.session_state.items_per_page += 5
+                        st.session_state["items_per_page"] += 5
                         st.rerun()
 
             # Show total count
