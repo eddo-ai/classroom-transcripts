@@ -25,6 +25,3 @@ dev-dependencies = [
     "watchdog>=6.0.0",
     "pytest-asyncio>=0.25.3",
 ]
-
-[tool.uv.workspace]
-members = ["src/functions/assemblyai-webhook-cloud-func"]
